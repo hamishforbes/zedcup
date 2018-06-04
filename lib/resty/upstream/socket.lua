@@ -8,38 +8,10 @@ local ngx_WARN = ngx.WARN
 local ngx_INFO = ngx.INFO
 local str_format = string.format
 local tbl_insert = table.insert
-local tbl_sort = table.sort
 local now = ngx.now
 local pairs = pairs
 local ipairs = ipairs
 local getfenv = getfenv
-local shared = ngx.shared
-local phase = ngx.get_phase
-local cjson = require('cjson')
-local cjson_encode = cjson.encode
-local cjson_decode = cjson.decode
-local resty_lock = require('resty.lock')
-
-
-local safe_json = function(func, data)
-    local ok, ret = pcall(func, data)
-    if ok then
-        return ret
-    else
-        ngx_log(ngx_ERR, ret)
-        return nil, ret
-    end
-end
-
-
-local json_decode = function(data)
-    return safe_json(cjson_decode, data)
-end
-
-
-local json_encode = function(data)
-   return safe_json(cjson_encode, data)
-end
 
 
 local _M = {
@@ -65,6 +37,9 @@ background_thread = function(premature, self)
     end
     -- Call ourselves on a timer again
     local ok, err = ngx_timer_at(self.background_period, background_thread, self)
+    if not ok then
+        ngx_log(ngx_ERR, "Failed to re-schedule background job: ", err)
+    end
 
     if not self:get_background_lock() then
         return
@@ -81,72 +56,40 @@ function _M.log(self, level, ...)
 end
 
 
-function _M.get_background_lock(self)
-    local pid = ngx_worker_pid()
-    local dict = self.dict
-    local lock, err = dict:add(self.background_flag, pid, self.background_timeout)
-    if lock then
-        return true
-    end
-    if err == 'exists' then
-        return false
-    else
-        self:log(ngx_DEBUG, "Could not add background lock key in pid #", pid)
-        return false
-    end
-end
+function _M.new(_, opts)
+    opts = opts or {}
 
-
-function _M.release_background_lock(self)
-    local dict = self.dict
-    local pid, err = dict:get(self.background_flag)
-    if not pid then
-        self:log(ngx_ERR, "Failed to get key '", self.background_flag, "': ", err)
-        return
-    end
-    if pid == ngx_worker_pid() then
-        local ok, err = dict:delete(self.background_flag)
-        if not ok then
-            self:log(ngx_ERR, "Failed to delete key '", self.background_flag, "': ", err)
-        end
-    end
-end
-
-
-function _M.new(_, dict_name, id)
-    local dict = shared[dict_name]
-    if not dict then
-        ngx_log(ngx_ERR, "Shared dictionary not found" )
-        return nil
-    end
-
-    if not id then id = 'default_upstream' end
-    if type(id) ~= 'string' then
+    if not opts.id then opts.id = 'default_upstream' end
+    if type(opts.id) ~= 'string' then
         return nil, 'Upstream ID must be a string'
     end
 
-    local self = {
-        id = id,
-        dict = dict,
-        dict_name = dict_name,
+    local self = setmetatable({
+        id = opts.id,
         listeners = {},
 
         -- Per worker data
         operational_data = {},
-    }
-    -- Create unique dictionary keys for this instance of upstream
-    self.pools_key = self.id..'_pools'
-    self.priority_key = self.id..'_priority_index'
-    self.background_flag = self.id..'_background_running'
-    self.lock_key = self.id..'_lock'
+    }, mt)
 
-    local configured = true
-    if dict:get(self.pools_key) == nil then
-        dict:set(self.pools_key, json_encode({}))
-        configured = false
+    -- Use default SHM state storage
+    if not opts.state_storage then
+        opts.state_storage = "shm"
     end
 
-    return setmetatable(self, mt), configured
+    local state_mod, err = require("resty.upstream.state_storage."..opts.state_storage)
+    if not state_mod then
+        return nil, "Failed to load state storage module '", opts.state_storage, "': " .. tostring(err)
+    end
+
+    local state, configured = state_mod:new(self, opts)
+    if not state then
+        return nil, "Failed to configure state storage '", opts.state_storage, "': " .. tostring(configured)
+    end
+
+    self.state = state
+
+    return self, configured
 end
 
 
@@ -203,151 +146,32 @@ end
 
 
 function _M.get_pools(self)
-    local ctx = self:ctx()
-    local err
-    if ctx.pools == nil then
-        local pool_str = self.dict:get(self.pools_key)
-        if not pool_str then
-            return nil, err
-        end
-        local pools, err = json_decode(pool_str)
-        if not pools then
-            return nil, err
-        end
-        ctx.pools = json_decode(pool_str)
-    end
-    return ctx.pools
-end
-
-
-local function get_lock_obj(self)
-    local ctx = self:ctx()
-    if not ctx.lock then
-        ctx.lock = resty_lock:new(self.dict_name)
-    end
-    return ctx.lock
+    return self.state:get_pools()
 end
 
 
 function _M.get_locked_pools(self)
-    if phase() == 'init' then
-        return self:get_pools()
-    end
-    local lock = get_lock_obj(self)
-    local ok, err = lock:lock(self.lock_key)
-
-    if ok then
-        local pool_str, err = self.dict:get(self.pools_key)
-        if not pool_str then
-            return nil, err
-        end
-        local pools, err = json_decode(pool_str)
-        return pools, err
-    else
-        self:log(ngx_INFO, "Failed to lock pools: ", err)
-    end
-
-    return ok, err
+    return self.state:get_locked_pools()
 end
 
 
 function _M.unlock_pools(self)
-    if phase() == 'init' then
-        return true
-    end
-    local lock = get_lock_obj(self)
-    local ok, err = lock:unlock(self.lock_key)
-    if not ok then
-        self:log(ngx_ERR, "Failed to release pools lock: ", err)
-    end
-    return ok, err
+    return self.state:unlock_pools()
 end
 
 
 function _M.get_priority_index(self)
-    local ctx = self:ctx()
-    if ctx.priority_index == nil then
-        local priority_str, err = self.dict:get(self.priority_key)
-        if not priority_str then
-            return nil, err
-        end
-        local priority_index, err = json_decode(priority_str)
-        if not priority_index then
-            return nil, err
-        end
-        ctx.priority_index = priority_index
-    end
-    return ctx.priority_index
-end
-
-
-local function _gcd(a,b)
-    -- Tail recursive gcd function
-    if b == 0 then
-        return a
-    else
-        return _gcd(b, a % b)
-    end
-end
-
-
-local function calc_gcd_weight(hosts)
-    -- Calculate the GCD and maximum weight value from a set of hosts
-    local gcd = 0
-    local len = #hosts - 1
-    local max_weight = 0
-    local i = 1
-
-    if len < 1 then
-        return 0, 0
-    end
-
-    repeat
-        local tmp = _gcd(hosts[i].weight, hosts[i+1].weight)
-        if tmp > gcd then
-            gcd = tmp
-        end
-        if hosts[i].weight > max_weight then
-            max_weight = hosts[i].weight
-        end
-        i = i +1
-    until i >= len
-    if hosts[i].weight > max_weight then
-        max_weight = hosts[i].weight
-    end
-
-    return gcd, max_weight
+    return self.state:get_priority_index()
 end
 
 
 function _M.save_pools(self, pools)
-    pools = pools or {}
-    self:ctx().pools = pools
-    local serialised, err = json_encode(pools)
-    if not serialised then
-        return nil, err
-    end
-    return self.dict:set(self.pools_key, serialised)
+    return self.state:save_pools(pools)
 end
 
 
 function _M.sort_pools(self, pools)
-    -- Create a table of priorities and a map back to the pool
-    local priorities = {}
-    local map = {}
-    for id,p in pairs(pools) do
-        map[p.priority] = id
-        tbl_insert(priorities, p.priority)
-    end
-    tbl_sort(priorities)
-
-    local sorted_pools = {}
-    for k,pri in ipairs(priorities) do
-        tbl_insert(sorted_pools, map[pri])
-    end
-
-    local serialised = json_encode(sorted_pools)
-    return self.dict:set(self.priority_key, serialised)
+    return self.state:sort_pools(pools)
 end
 
 
@@ -371,8 +195,8 @@ function _M.revive_hosts(self)
     local changed = false
     for poolid,pool in pairs(pools) do
         local failed_timeout = pool.failed_timeout
-        local max_fails = pool.max_fails
-        for k, host in ipairs(pool.hosts) do
+
+        for _, host in ipairs(pool.hosts) do
             -- Reset any hosts past their timeout
              if host.lastfail ~= 0 and (host.lastfail + failed_timeout) < now then
                 host.failcount = 0
@@ -397,7 +221,9 @@ function _M.revive_hosts(self)
             self:log(ngx_ERR, "Error saving pools: ", err)
         end
     end
+
     self:unlock_pools()
+
     return ok, err
 end
 
@@ -413,18 +239,19 @@ end
 
 
 function _M._process_failed_hosts(premature, self, ctx)
+    if premature then return end
+
     local failed = ctx.failed
     local now = now()
     local get_host_idx = self.get_host_idx
     local pools, err = self:get_locked_pools()
     if not pools then
-        return
+        return nil, err
     end
 
     local changed = false
     for poolid,hosts in pairs(failed) do
         local pool = pools[poolid]
-        local failed_timeout = pool.failed_timeout
         local max_fails = pool.max_fails
         local pool_hosts = pool.hosts
 
@@ -518,7 +345,7 @@ end
 local function get_hash_host(vars)
     local h = vars.hash
     local hosts = vars.available_hosts
-    local weight_sum = vars.weight_sum
+    local maxweight = vars.max_weight
     local hostcount = #hosts
 
     if hostcount == 0 then return end
@@ -623,6 +450,45 @@ _M.available_methods.hash = function(self, pool, sock, key)
 end
 
 
+local function _gcd(a,b)
+    -- Tail recursive gcd function
+    if b == 0 then
+        return a
+    else
+        return _gcd(b, a % b)
+    end
+end
+
+
+local function calc_gcd_weight(hosts)
+    -- Calculate the GCD and maximum weight value from a set of hosts
+    local gcd = 0
+    local len = #hosts - 1
+    local max_weight = 0
+    local i = 1
+
+    if len < 1 then
+        return 0, 0
+    end
+
+    repeat
+        local tmp = _gcd(hosts[i].weight, hosts[i+1].weight)
+        if tmp > gcd then
+            gcd = tmp
+        end
+        if hosts[i].weight > max_weight then
+            max_weight = hosts[i].weight
+        end
+        i = i +1
+    until i >= len
+    if hosts[i].weight > max_weight then
+        max_weight = hosts[i].weight
+    end
+
+    return gcd, max_weight
+end
+
+
 local function select_weighted_rr_host(hosts, failed_hosts, round_robin_vars)
     local idx = round_robin_vars.idx
     local cw = round_robin_vars.cw
@@ -703,7 +569,7 @@ _M.available_methods.round_robin = function(self, pool, sock)
     -- Loop until we run out of hosts or have connected
     local connected, err
     repeat
-        local host, idx = select_weighted_rr_host(hosts, failed_hosts, round_robin_vars)
+        local host, _ = select_weighted_rr_host(hosts, failed_hosts, round_robin_vars)
         if not host then
             -- Ran out of hosts, break out of the loop (go to next pool)
             break
@@ -761,6 +627,7 @@ function _M.connect(self, sock, key)
 
                 -- Load balance between available hosts using specified method
                 connected, sock, host, err = available_methods[pool.method](self, pool, sock, key)
+                if err then ngx_log(ngx_DEBUG, "Balancing error: ", err) end
 
                 if connected then
                     -- Return connected socket!
@@ -771,6 +638,7 @@ function _M.connect(self, sock, key)
             end
         end
     end
+
     -- Didnt find any pools with working hosts, return the last error message
     return nil, "No available upstream hosts"
 end
