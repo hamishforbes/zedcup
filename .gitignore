@@ -1,2 +1,4 @@
+*.swp
+.vscode
 t/servroot/
 t/error.log
