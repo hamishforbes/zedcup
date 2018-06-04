@@ -21,7 +21,7 @@ our $InitConfig = qq{
         upstream_http  = require("resty.upstream.http")
         upstream_api = require("resty.upstream.api")
 
-        upstream, configured = upstream_socket:new("test_upstream")
+        upstream, configured = upstream_socket:new({ dict = "test_upstream" })
         test_api = upstream_api:new(upstream)
         http = upstream_http:new(upstream)
 

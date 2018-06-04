@@ -18,7 +18,7 @@ our $HttpConfig = qq{
         upstream_socket  = require("resty.upstream.socket")
         upstream_api = require("resty.upstream.api")
 
-        upstream, configured = upstream_socket:new("test_upstream")
+        upstream, configured = upstream_socket:new({ dict = "test_upstream" })
         test_api = upstream_api:new(upstream)
 
         test_api:create_pool({id = "primary", timeout = 100})
@@ -46,7 +46,7 @@ __DATA__
             ngx.say(err)
 
             local ok, err = test_api:unlock_pools()
-            local pools = cjson.decode(upstream.dict:get(upstream.pools_key))
+            local pools = cjson.decode(upstream.state.dict:get(upstream.state.pools_key))
             for k,v in pairs(pools) do
                 ngx.say(k)
             end
@@ -71,7 +71,7 @@ primary
 
             local ok, err = test_api:unlock_pools()
 
-            local pools = cjson.decode(upstream.dict:get(upstream.pools_key))
+            local pools = cjson.decode(upstream.state.dict:get(upstream.state.pools_key))
             ngx.say(pools.primary.priority)
 
         ';
@@ -94,7 +94,7 @@ locked
             ngx.say(err)
 
             local ok, err = test_api:unlock_pools()
-            local pools = cjson.decode(upstream.dict:get(upstream.pools_key))
+            local pools = cjson.decode(upstream.state.dict:get(upstream.state.pools_key))
             for k,v in pairs(pools.primary.hosts) do
                 ngx.say(pools.primary.hosts[k].id)
             end
@@ -118,7 +118,7 @@ a
             ngx.say(err)
 
             local ok, err = test_api:unlock_pools()
-            local pools = cjson.decode(upstream.dict:get(upstream.pools_key))
+            local pools = cjson.decode(upstream.state.dict:get(upstream.state.pools_key))
             for k,v in pairs(pools.primary.hosts) do
                ngx.say(pools.primary.hosts[k].id)
             end
@@ -142,7 +142,7 @@ a
 
             local ok, err = test_api:unlock_pools()
 
-            local pools = cjson.decode(upstream.dict:get(upstream.pools_key))
+            local pools = cjson.decode(upstream.state.dict:get(upstream.state.pools_key))
             ngx.say(pools.primary.hosts[upstream.get_host_idx("a", pools.primary.hosts)].weight)
         ';
     }

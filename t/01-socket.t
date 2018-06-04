@@ -1,9 +1,6 @@
 # vim:set ft= ts=4 sw=4 et:
-
-use Test::Nginx::Socket;
+use Test::Nginx::Socket 'no_plan';
 use Cwd qw(cwd);
-
-plan tests => repeat_each() * (26);
 
 my $pwd = cwd();
 
@@ -17,7 +14,10 @@ our $HttpConfig = qq{
         cjson = require "cjson"
         upstream_socket  = require("resty.upstream.socket")
 
-        upstream, configured = upstream_socket:new("test_upstream")
+        upstream, configured = upstream_socket:new({ dict = "test_upstream" })
+        if not upstream then
+            ngx.log(ngx.ERR, configured)
+        end
 
         local pools = {
                 primary = {
@@ -71,9 +71,10 @@ __DATA__
 --- config
     location = /a {
         content_by_lua '
-             local keys = ngx.shared["test_upstream"]:get_keys()
+            local keys, err = ngx.shared["test_upstream"]:get_keys()
+            if err then ngx.log(ngx.ERR, err) end
 
-             if #keys > 0 then
+            if #keys > 0 then
                 ngx.status = 200
                 ngx.say("OK")
                 ngx.exit(200)
@@ -101,10 +102,10 @@ OK
 
             local dict = ngx.shared["test_upstream"]
 
-            local pool_str = dict:get(upstream.pools_key)
+            local pool_str = dict:get(upstream.state.pools_key)
             local pools = cjson.decode(pool_str)
 
-            local priority_str = dict:get(upstream.priority_key)
+            local priority_str = dict:get(upstream.state.priority_key)
             local priority_index = cjson.decode(priority_str)
 
             local fail = true
@@ -142,7 +143,7 @@ OK
         content_by_lua '
             local dict = ngx.shared["test_upstream"]
 
-            local priority_str = dict:get(upstream.priority_key)
+            local priority_str = dict:get(upstream.state.priority_key)
             local priority_index = cjson.decode(priority_str)
 
             for k,v in ipairs(priority_index) do
@@ -165,7 +166,7 @@ tertiary
 --- config
     location = /a {
         content_by_lua '
-            local upstream2, configured = upstream_socket:new("test_upstream", "upstream2")
+            local upstream2, configured = upstream_socket:new({ dict = "test_upstream", id = "upstream2"})
             local pools = {
                 primary = {
                     up = true,
@@ -229,7 +230,7 @@ primary
 --- config
     location = /a {
         content_by_lua '
-            local test, configured = upstream_socket:new("test_upstream", {})
+            local test, configured = upstream_socket:new({ dict = "test_upstream", id = {} })
             if test ~= nil then
                 ngx.status = 500
                 ngx.exit(500)
@@ -276,7 +277,7 @@ Cannot serialise function: type not supported
             ]]
 
             local dict = ngx.shared["test_upstream"]
-            dict:set(upstream.pools_key, bad_json)
+            dict:set(upstream.state.pools_key, bad_json)
 
             local ok, err = upstream:get_pools(bad_conf)
             ngx.say(err)

@@ -18,7 +18,7 @@ our $HttpConfig = qq{
         upstream_socket  = require("resty.upstream.socket")
         upstream_api = require("resty.upstream.api")
 
-        upstream, configured = upstream_socket:new("test_upstream")
+        upstream, configured = upstream_socket:new({ dict = "test_upstream" })
         test_api = upstream_api:new(upstream)
 
         test_api:create_pool({id = "primary", timeout = 10})
