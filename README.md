@@ -2,7 +2,7 @@
 
 Zero Conf Upstream load balancing and failover for Openresty and Consul
 
-![Travis Status](https://travis-ci.com/hamishforbes/zedcup.svg?branch=master)
+[![Build Status](https://travis-ci.com/hamishforbes/zedcup.svg?branch=master)](https://travis-ci.com/hamishforbes/zedcup)
 
 # Table of Contents
 
