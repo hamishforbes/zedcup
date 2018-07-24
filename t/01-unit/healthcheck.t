@@ -122,6 +122,9 @@ __DATA__
 
             local ok, err = healthcheck(false)
 
+            table.sort(req_err)
+            table.sort(conn_err)
+
             for _, err in pairs(req_err) do ngx.say("Request err: ", err) end
             for _, err in pairs(conn_err) do ngx.say("Connect err: ", err) end
 
@@ -130,12 +133,17 @@ __DATA__
             if err then error(err) end
             ngx.say(res.body[1].Value)
 
-            local res, err = c:get_key(globals.prefix.."/state/test/1/1/error_count")
-            ngx.say(res.status)
+            local res, err = c:get_key(globals.prefix.."/state/test/1/1/last_check")
+            if err then error(err) end
+            ngx.say(tonumber(res.body[1].Value) == ngx.time())
 
             local res, err = c:get_key(globals.prefix.."/state/test2/3/1/error_count")
             if err then error(err) end
             ngx.say(res.body[1].Value)
+
+            local res, err = c:get_key(globals.prefix.."/state/test2/3/1/last_check")
+            if err then error(err) end
+            ngx.say(tonumber(res.body[1].Value) == ngx.time())
 
         }
     }
@@ -154,13 +162,14 @@ location = /_health {
 --- request
 GET /a
 --- response_body
-Request err: test:primary/web02 : Bad status code: 500
 Request err: test2:primary/web02 : Bad status code: 500
-Connect err: test:tertiary/1 : connection refused
+Request err: test:primary/web02 : Bad status code: 500
 Connect err: test2:tertiary/1 : connection refused
+Connect err: test:tertiary/1 : connection refused
 1
-404
+true
 1
+true
 --- no_error_log
 [error]
 [warn]
