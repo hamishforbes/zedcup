@@ -161,7 +161,7 @@ local function _config()
         return nil, err
     end
 
-    GLOBALS.dicts.cache.dict:set("instances_index", res.headers["X-Consul-Index"])
+    GLOBALS.dicts.cache:set("instances_index", res.headers["X-Consul-Index"])
 
     return utils.entries2table(res.body, config_key)
 end
