@@ -93,6 +93,8 @@ http {
                 ngx.say(res.status)
                 ngx.say(res:read_body())
 
+                handler:set_keepalive()
+
             }
             log_by_lua_block {
                 require("zedcup").create_handler("test"):persist_host_errors()

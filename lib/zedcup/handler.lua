@@ -610,6 +610,7 @@ _M.connect = connect
 
 local function _try_request(self, params)
     local httpc = resty_http:new()
+    self.httpc = httpc
 
     local httpc, err = connect(self, httpc)
 
@@ -695,6 +696,39 @@ function _M.request(self, params)
     if DEBUG then ngx_log(ngx_DEBUG, "[zedcup (", self.id, ")] Could not complete HTTP request") end
 
     return res, err
+end
+
+
+function _M.get_client_body_reader(self, ...)
+    return self.httpc:get_client_body_reader(...)
+end
+
+
+function _M.set_keepalive(self, ...)
+    local connected_host = self.ctx.connected_host
+
+    local keepalive_timeout = select(1, ...)
+    local keepalive_pool = select(2, ...)
+
+    if not keepalive_timeout and connected_host then
+        keepalive_timeout = self.ctx.connected_host._pool.keepalive_timeout
+    end
+
+    if not keepalive_pool and connected_host then
+        keepalive_pool = self.ctx.connected_host._pool.keepalive_timeout
+    end
+
+    return self.httpc:set_keepalive(keepalive_timeout, keepalive_pool)
+end
+
+
+function _M.get_reused_times(self, ...)
+    return self.httpc:getreusedtimes(...)
+end
+
+
+function _M.close(self, ...)
+    return self.httpc:close(...)
 end
 
 
