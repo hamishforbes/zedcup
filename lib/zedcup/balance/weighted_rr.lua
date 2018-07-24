@@ -1,7 +1,5 @@
 local ngx_log = ngx.log
 local ngx_DEBUG = ngx.DEBUG
-local ngx_ERR = ngx.ERR
-local ngx_INFO = ngx.INFO
 
 local zedcup  = require("zedcup")
 local GLOBALS = zedcup.globals()
