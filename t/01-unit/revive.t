@@ -164,6 +164,7 @@ __DATA__
             ngx.say("test2 state3/1: ", s2[3][1].error_count)
 
             ngx.say(#revived)
+            table.sort(revived)
             for _, v in ipairs(revived) do
                 ngx.say(v)
             end
@@ -190,10 +191,10 @@ test state: nil
 test2 state: nil
 test2 state3/1: 999
 5
-test:primary/web01
 test2:primary/web01
-test:primary/web02
 test2:primary/web02
+test:primary/web01
+test:primary/web02
 test:tertiary/1
 --- no_error_log
 [error]
