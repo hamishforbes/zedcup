@@ -409,7 +409,7 @@ function _M.set_host_up(self, host)
 end
 
 
-local function _process_host_errors(premature, self)
+local function _persist_host_errors(premature, self)
     if premature then return end
 
     local conf, err = self:config()
@@ -454,12 +454,12 @@ local function _process_host_errors(premature, self)
         end
     end
 end
-_M._process_host_errors = _process_host_errors
+_M._persist_host_errors = _persist_host_errors
 
 
-function _M.process_host_errors(self)
+function _M.persist_host_errors(self)
     -- Run in a background thread immediately after the request is done
-    ngx.timer.at(0, _process_host_errors, self)
+    ngx.timer.at(0, _persist_host_errors, self)
 end
 
 

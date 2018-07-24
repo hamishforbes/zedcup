@@ -33,16 +33,26 @@ local function _healthcheck_host(host, handler, state)
     end
 
     local last_check = host_state.last_check
-    if last_check and (last_check + params.interval) <= ngx.now() then
+    if last_check and (last_check + params.interval) >= ngx.now() then
 
         if DEBUG then
-            ngx_log(ngx_DEBUG, "[zedcup (", handler.id, ")] Skipping healthcheck, already checked within window")
+            ngx_log(ngx_DEBUG, "[zedcup (", handler.id, ")] Skipping healthcheck ", host._pool.name, "/", host.name,
+                " already checked within window:",
+                " last_check: ", last_check,
+                " interval: ", params.interval,
+                " now: ", ngx.now()
+            )
         end
 
         return true
     end
 
     if DEBUG then ngx_log(ngx_DEBUG, "[zedcup (", handler.id, ")] Healthchecking ", host._pool.name, "/", host.name) end
+
+    local ok, err = handler:set_host_last_check(host)
+    if not ok then
+        return false, err
+    end
 
     local httpc = resty_http.new()
 
@@ -174,7 +184,7 @@ local function _healthcheck_instance(instance)
     end
 
     -- Process healthcheck failures inline
-    handler._process_host_errors(false, handler)
+    handler._persist_host_errors(false, handler)
 
     return true
 end

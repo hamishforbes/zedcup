@@ -80,6 +80,7 @@ function _M.init(opts)
             {
                 ipc_shm   = GLOBALS.dict_names.ipc,
                 shm_locks = GLOBALS.dict_names.locks,
+                ttl       = 0,
             }
         )
     if not cache then
@@ -98,7 +99,7 @@ end
 function _M.initted() return INIT end
 
 
-function _M.run_workers()
+local function _run_workers()
     if DEBUG then ngx_log(ngx_DEBUG, "[zedcup] Starting workers") end
 
     -- cache updates (no lock)
@@ -133,6 +134,14 @@ function _M.run_workers()
 end
 
 
+function _M.run_workers()
+    -- Workers neede access to config, which cannot be retrieved in the worker_init phase
+    -- Start a timer (where sockets work) and start workers there
+    local ok, err = ngx.timer.at(0, _run_workers)
+    if not ok then error(err) end
+end
+
+
 function _M.globals()
     return GLOBALS
 end
@@ -161,7 +170,7 @@ local function _config()
         return nil, err
     end
 
-    GLOBALS.dicts.cache:set("instances_index", res.headers["X-Consul-Index"])
+    GLOBALS.dicts.cache:set("çonfig_index", res.headers["X-Consul-Index"])
 
     return utils.entries2table(res.body, config_key)
 end
@@ -329,6 +338,8 @@ local function _instance_list()
 
 
     if DEBUG then ngx_log(ngx_DEBUG, "[zedcup] Found instances: \n", require("cjson").encode(list)) end
+
+    GLOBALS.dicts.cache:set("instances_index", res.headers["X-Consul-Index"])
 
     return list
 end

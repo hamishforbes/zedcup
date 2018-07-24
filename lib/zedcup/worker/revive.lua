@@ -58,41 +58,45 @@ local function _revive_instance(instance)
         for hidx, host_state in pairs(hosts) do
             local host = pool.hosts[hidx]
 
-            if DEBUG then
-                ngx_log(ngx_DEBUG, "[zedcup (", instance, ")] Checking ", pool.name, "/", host.name,
-                    " up: ", host.up, "(", type(host.up), ")",
-                    " last_error: ", host_state.last_error,
-                    " timeout: ", error_timeout,
-                    " now: ",now
-                )
-            end
-
-
-            if (host_state.last_error + error_timeout) < now then
-                -- Last error was beyond the error timeout, reset the state
+            if host_state.last_error then
                 if DEBUG then
-                    ngx_log(ngx_DEBUG, "[zedcup (", instance, ")] Reset error count for ", pool.name, "/", host.name)
+                    ngx_log(ngx_DEBUG, "[zedcup (", instance, ")] Checking ", pool.name, "/", host.name,
+                        " up: ", host.up, "(", type(host.up), ")",
+                        " last_error: ", host_state.last_error,
+                        " timeout: ", error_timeout,
+                        " now: ",now
+                    )
                 end
 
-                local ok, err = handler:reset_host_error_count(host)
 
-                if not ok then
-                    ngx_log(ngx_ERR,"[zedcup (", instance, ")] Failed to reset host error count: ", err)
-
-                elseif host.up == false then
-
-                    -- Host is down too, set it up
-                    local ok, err = handler:set_host_up(host)
-                    if not ok then
-                        ngx_log(ngx_ERR,"[zedcup (", instance, ")] Failed to set host up: ", err)
-
-                    else
-                        ngx_log(ngx_DEBUG, "[zedcup (", instance, ")] ", pool.name, "/", host.name, " is up")
-
-                        handler:_emit("host_up", {host = host, pool = pool})
-
+                if (host_state.last_error + error_timeout) < now then
+                    -- Last error was beyond the error timeout, reset the state
+                    if DEBUG then
+                        ngx_log(ngx_DEBUG, "[zedcup (", instance, ")] Reset error count for ",
+                             pool.name, "/", host.name
+                        )
                     end
 
+                    local ok, err = handler:reset_host_error_count(host)
+
+                    if not ok then
+                        ngx_log(ngx_ERR,"[zedcup (", instance, ")] Failed to reset host error count: ", err)
+
+                    elseif host.up == false then
+
+                        -- Host is down too, set it up
+                        local ok, err = handler:set_host_up(host)
+                        if not ok then
+                            ngx_log(ngx_ERR,"[zedcup (", instance, ")] Failed to set host up: ", err)
+
+                        else
+                            ngx_log(ngx_DEBUG, "[zedcup (", instance, ")] ", pool.name, "/", host.name, " is up")
+
+                            handler:_emit("host_up", {host = host, pool = pool})
+
+                        end
+
+                    end
                 end
             end
 

@@ -37,7 +37,7 @@ local function watch_key(key, index)
     end
 
     if res.status ~= 200 then
-        return false, string.format("status: %s, body: %s", res.status, res.body)
+        return false, string.format("status: %s, body: %s", res.status, res.body), res
     end
 
     if DEBUG then ngx_log(ngx_DEBUG, "[zedcup] Got ",res.headers["X-Consul-Index"]," on ", key) end
@@ -56,10 +56,28 @@ local function _config_watcher()
     local idx = dict:get("config_index")
 
     local config_key = GLOBALS.prefix .. "/config/"
-    local res, err = watch_key(config_key, idx)
+    local res, err, err_res = watch_key(config_key, idx)
 
     if res == false then
-        ngx_log(ngx_ERR, "[zedcup] Global watcher error: ", err)
+        -- No global config for zedcup, that's fine, just keep going
+        if err_res and err_res.status == 404 then
+            if DEBUG then ngx_log(ngx_DEBUG, "[zedcup] Global config is 404") end
+
+            local consul, err = utils.consul_client()
+            if not consul then
+                return nil, err
+            end
+
+            -- Create a dummy config option to watch on, otherwise we loop constantly with no config
+            local res, err = consul:put_key(config_key..".placeholder", "")
+            if not res then
+                return nil, err
+            end
+
+        else
+            ngx_log(ngx_ERR, "[zedcup] Global watcher error: ", err)
+        end
+
         return false
     end
 
@@ -237,6 +255,8 @@ function _M.run()
     if not ok then
         ngx.log(ngx.ERR, "[zedcup] Failed to start instance watcher: ", err)
     end
+
+    return true
 end
 
 

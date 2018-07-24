@@ -111,6 +111,9 @@ local function acquire_worker_lock(key, ttl)
     end
 
     local global_config = zedcup.config()
+    if not global_config then
+        return nil, "Could not retrieve zedcup config"
+    end
 
     local pid = ngx_worker_pid()
     local dict = GLOBALS.dicts["locks"]
