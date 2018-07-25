@@ -78,7 +78,12 @@ local function entries2table(entries, prefix, cb)
 
     -- Parse response
     local res = {}
-    local magic_len = #(prefix or "")+1
+
+    -- Strip the leading / or the leading prefix if supplied
+    local magic_len = 2
+    if prefix then
+        magic_len = #(prefix) + 1
+    end
 
     if DEBUG then ngx_log(ngx_DEBUG, "[zedcup] Prefix: ", prefix) end
 
@@ -165,6 +170,7 @@ _M.table2txn = table2txn
 
 
 local function error_delay(attempt)
+    attempt = attempt or 1
     local delay = 2^attempt
     if delay > 300 then
         delay = 300
