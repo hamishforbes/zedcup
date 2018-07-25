@@ -755,7 +755,6 @@ OK
             ngx.say("ctx2.foo: ", handler2.ctx.foo)
             ngx.say("ctx1B.foo: ", handlerB.ctx.foo)
             ngx.say("ctx2B.foo: ", handler2B.ctx.foo)
-            ngx.say()
 
         }
     }

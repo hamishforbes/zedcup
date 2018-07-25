@@ -140,6 +140,29 @@ ngx.log(ngx.DEBUG, "########################################################")
             for _, v in ipairs(set) do ngx.say("set: ", v) end
 
 
+ngx.log(ngx.DEBUG, "######################################################## DELETE")
+            require("zedcup").config()
+
+            -- Delete all config in the background
+            local ok, err = ngx.timer.at(0, function(premature)
+                local globals = require("zedcup").globals()
+                local c = require("resty.consul"):new({
+                    host = TEST_CONSUL_HOST,
+                    port = TEST_CONSUL_port,
+                })
+
+                c:delete_key(globals.prefix, {recurse = true})
+            end)
+            if not ok then error(err) end
+
+            -- Run the watcher
+            deleted, set = {}, {}
+            local ok = watcher._config_watcher()
+            ngx.say("5th: ", ok, " ", #deleted)
+            for _, v in ipairs(deleted) do ngx.say("del: ", v) end
+            for _, v in ipairs(set) do ngx.say("set: ", v) end
+
+
         }
     }
 --- request
@@ -156,6 +179,7 @@ dict idx: true
 del: config
 4th: true 1
 del: config
+5th: false 0
 --- no_error_log
 [error]
 [warn]
