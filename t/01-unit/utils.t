@@ -345,10 +345,25 @@ Conflict /dummy/prefix/a/b/c has an existing value
             ngx.log(ngx.DEBUG, require("cjson").encode(txn))
 
             assert(#txn == 8, "payload len")
-            assert(txn[1].KV.Value == "1234" and txn[1].KV.Key == "/dummy/prefix/b", "txn[1]")
-            assert(txn[2].KV.Value == "b" and txn[2].KV.Key == "/dummy/prefix/sub_t/b", "txn[2]")
-            assert(txn[8].KV.Value == "baz" and txn[8].KV.Key == "/dummy/prefix/array/3", "txn[8]")
 
+            -- Loop and check key/val combos exist to prevent ordering issues
+            local assertions = 0
+            for _, t in ipairs(txn) do
+                if t.KV.Key == "/dummy/prefix/b" then
+                    assert(t.KV.Value == "1234", "/dummy/prefix/b")
+                    assertions = assertions + 1
+                end
+                if t.KV.Key == "/dummy/prefix/sub_t/b" then
+                    assert(t.KV.Value == "b", "/dummy/prefix/sub_t/b")
+                    assertions = assertions + 1
+                end
+                if t.KV.Key == "/dummy/prefix/array/3" then
+                    assert(t.KV.Value == "baz", "/dummy/prefix/array/3")
+                    assertions = assertions + 1
+                end
+            end
+
+            assert(assertions == 3, "Missed assertions")
         }
     }
 --- request
