@@ -689,3 +689,85 @@ OK
 --- no_error_log
 [error]
 [warn]
+
+=== TEST 9: ctx
+--- http_config eval: $::HttpConfig
+--- config
+    location = /a {
+        content_by_lua_block {
+            local zedcup = require("zedcup")
+            local globals = zedcup.globals()
+
+            local c = require("resty.consul"):new({
+                host = TEST_CONSUL_HOST,
+                port = TEST_CONSUL_port,
+            })
+
+            -- Clear up before running test
+            c:delete_key(globals.prefix, {recurse = true})
+
+            -- Configure the instances
+            local ok, err = zedcup.configure_instance("test", DEFAULT_CONF)
+            if not ok then ngx.say(err) end
+            local ok, err = zedcup.configure_instance("test2", DEFAULT_CONF)
+            if not ok then ngx.say(err) end
+
+            local handler, err = zedcup.create_handler("test")
+            if err then error(err) end
+            local handler2, err = zedcup.create_handler("test2")
+            if err then error(err) end
+
+            handler.ctx.foo = "test1"
+            ngx.say("ctx1.foo: ", handler.ctx.foo)
+            ngx.say("ctx2.foo: ", handler2.ctx.foo)
+            ngx.say()
+
+            handler2.ctx.foo = "test2"
+            ngx.say("ctx1.foo: ", handler.ctx.foo)
+            ngx.say("ctx2.foo: ", handler2.ctx.foo)
+            ngx.say()
+
+            -- Recreate handlers, should not override
+            local handlerB, err = zedcup.create_handler("test")
+            if err then error(err) end
+            local handler2B, err = zedcup.create_handler("test2")
+            if err then error(err) end
+
+            ngx.say("ctx1.foo: ", handler.ctx.foo)
+            ngx.say("ctx2.foo: ", handler2.ctx.foo)
+            ngx.say("ctx1B.foo: ", handlerB.ctx.foo)
+            ngx.say("ctx2B.foo: ", handler2B.ctx.foo)
+            ngx.say()
+
+            handlerB.ctx.foo = "test1B"
+            handler2B.ctx.foo = "test2B"
+
+            ngx.say("ctx1.foo: ", handler.ctx.foo)
+            ngx.say("ctx2.foo: ", handler2.ctx.foo)
+            ngx.say("ctx1B.foo: ", handlerB.ctx.foo)
+            ngx.say("ctx2B.foo: ", handler2B.ctx.foo)
+            ngx.say()
+
+        }
+    }
+--- request
+GET /a
+--- response_body
+ctx1.foo: test1
+ctx2.foo: nil
+
+ctx1.foo: test1
+ctx2.foo: test2
+
+ctx1.foo: test1
+ctx2.foo: test2
+ctx1B.foo: test1
+ctx2B.foo: test2
+
+ctx1.foo: test1B
+ctx2.foo: test2B
+ctx1B.foo: test1B
+ctx2B.foo: test2B
+--- no_error_log
+[error]
+[warn]
