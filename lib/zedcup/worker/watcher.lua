@@ -61,7 +61,7 @@ local function _config_watcher()
     if res == false then
         -- No global config for zedcup, that's fine, just keep going
         if err_res and err_res.status == 404 then
-            if DEBUG then ngx_log(ngx_DEBUG, "[zedcup] Global config is 404") end
+            if DEBUG then ngx_log(ngx_DEBUG, "[zedcup] Global config is 404, setting placeholder") end
 
             local consul, err = utils.consul_client()
             if not consul then
@@ -96,7 +96,8 @@ local function _config_watcher()
     end
 
     -- Use this index for the next watch
-    dict:set("config_index", res.headers["X-Consul-Index"])
+    local ok, err = dict:set("config_index", res.headers["X-Consul-Index"])
+    if not ok then ngx_log(ngx_ERR, "[zedcup] Failed to set config_index: ", err) end
 
     return true
 end
@@ -210,7 +211,8 @@ local function _instance_watcher()
     end
 
     -- Use this index for the next watch
-    dict:set("instances_index", res.headers["X-Consul-Index"])
+    local ok, err = dict:set("instances_index", res.headers["X-Consul-Index"])
+    if not ok then ngx_log(ngx_ERR, "[zedcup] Failed to set instances_index: ", err) end
 
    return true
 end
