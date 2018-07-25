@@ -152,10 +152,15 @@ local function _instance_watcher()
     local idx = dict:get("instances_index")
 
     local config_key = GLOBALS.prefix .. "/instances/"
-    local res, err = watch_key(config_key, idx)
+    local res, err, err_res = watch_key(config_key, idx)
 
     if res == false then
-        ngx_log(ngx_ERR, "[zedcup] Instance watcher error: ", err)
+        if err_res and err_res.status == 404 then
+            ngx_log(ngx_ERR, "[zedcup] Instance watcher, no instance config found")
+        else
+            ngx_log(ngx_ERR, "[zedcup] Instance watcher error: ", err)
+        end
+
         return false
     end
 

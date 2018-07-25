@@ -471,14 +471,30 @@ local function _try_handshake(self, sock, host)
     end
 
     local ssl = config.ssl
+
     -- SSL is enabled with defaults
     if ssl == true then ssl = {} end
+
+    local verify = true
+    if ssl.verify == false then
+        verify = false
+    end
+
+    local sni_name = ssl.sni_name or ngx.var.host
+
+    if DEBUG then
+        ngx_log(ngx_DEBUG, "[zedcup] TLS handshake ",
+            host._pool.name, "/", host.name,
+            ", verify: ", verify,
+            ", sni_name: ", sni_name
+        )
+    end
 
     -- Do the handshake
     local session, err = sock:ssl_handshake(
                 nil, -- TOOD: reuse session
-                ssl.sni_host   or ngx.var.host,
-                ssl.ssl_verify or true
+                sni_name,
+                verify
             )
 
     if not session then
@@ -493,7 +509,12 @@ local function _try_handshake(self, sock, host)
             err
         )
 
-        emit(self, "host_connect_error", { pool = pool, host = host, err = err })
+        emit(self, "host_connect_error", {
+            pool = pool,
+            host = host,
+            err = err,
+            ssl = { verify = verify, sni_name = sni_name}
+        })
 
         return false
     end
@@ -509,7 +530,13 @@ local function _try_connect(self, sock, host)
 
     local pool = host._pool
 
-    local connected, err = sock:connect(host.host, host.port)
+    local connected, err
+    if host.port then
+        connected, err = sock:connect(host.host, host.port)
+    else
+        connected, err = sock:connect(host.host)
+    end
+
     if not connected then
         -- Mark this host has having failed
         -- Will not be re-used in this request

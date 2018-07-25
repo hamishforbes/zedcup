@@ -170,7 +170,8 @@ local function _config()
         return nil, err
     end
 
-    GLOBALS.dicts.cache:set("çonfig_index", res.headers["X-Consul-Index"])
+    local ok, err = GLOBALS.dicts.cache:set("çonfig_index", res.headers["X-Consul-Index"])
+    if not ok then ngx_log(ngx_ERR, "[zedcup] Failed to set config_index: ", err) end
 
     return utils.entries2table(res.body, config_key)
 end
@@ -339,7 +340,8 @@ local function _instance_list()
 
     if DEBUG then ngx_log(ngx_DEBUG, "[zedcup] Found instances: \n", require("cjson").encode(list)) end
 
-    GLOBALS.dicts.cache:set("instances_index", res.headers["X-Consul-Index"])
+    local ok, err = GLOBALS.dicts.cache:set("instances_index", res.headers["X-Consul-Index"])
+    if not ok then ngx_log(ngx_ERR, "[zedcup] Failed to set instances_index: ", err) end
 
     return list
 end
