@@ -139,7 +139,6 @@ __DATA__
 
         }
     }
---- ONLY
 --- request
 GET /a
 --- response_body
@@ -194,6 +193,7 @@ web01
 
             if sock then
                 ngx.say(connected.pool.name, "/", connected.host.name )
+                ngx.say("ctx: ", handler.ctx.connected_host._pool.name, "/", handler.ctx.connected_host.name )
             else
                 ngx.say("fail")
             end
@@ -204,6 +204,7 @@ web01
 GET /a
 --- response_body
 primary/web01
+ctx: primary/web01
 --- no_error_log
 [error]
 [warn]
