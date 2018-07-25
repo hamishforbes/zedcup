@@ -4,9 +4,10 @@ use Cwd qw(cwd);
 
 my $pwd = cwd();
 
-$ENV{TEST_CONSUL_HOST} ||= "127.0.0.1";
-$ENV{TEST_CONSUL_PORT} ||= "8500";
-$ENV{TEST_NGINX_PORT}  ||= 1984;
+$ENV{TEST_CONSUL_HOST}   ||= "127.0.0.1";
+$ENV{TEST_CONSUL_PORT}   ||= "8500";
+$ENV{TEST_NGINX_PORT}    ||= 1984;
+$ENV{TEST_ZEDCUP_PREFIX} ||= "zedcup_test_suite";
 
 no_diff();
 no_long_string();
@@ -31,12 +32,14 @@ our $HttpConfig = qq{
         TEST_CONSUL_PORT = $ENV{TEST_CONSUL_PORT}
         TEST_CONSUL_HOST = "$ENV{TEST_CONSUL_HOST}"
         TEST_NGINX_PORT  = $ENV{TEST_NGINX_PORT}
+        TEST_ZEDCUP_PREFIX = "$ENV{TEST_ZEDCUP_PREFIX}"
 
         zedcup.init({
             consul = {
                 host = TEST_CONSUL_HOST,
                 port = TEST_CONSUL_PORT,
-            }
+            },
+            prefix = TEST_ZEDCUP_PREFIX
         })
 
         DEFAULT_CONF = {
@@ -79,7 +82,7 @@ our $HttpConfig = qq{
 run_tests();
 
 __DATA__
-=== TEST 1: healthchecks 
+=== TEST 1: healthchecks
 --- http_config eval: $::HttpConfig
 --- config
     location = /a {
