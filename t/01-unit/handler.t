@@ -65,7 +65,8 @@ our $HttpConfig = qq{
                     hosts = {
                         { host = "127.0.0.1", port = TEST_NGINX_PORT+1,
                             healthcheck = {
-                                path = "/_health"
+                                path = "/_health",
+                                status_codes = {"5xx", "3xx"},
                             }
                         }
 
@@ -121,6 +122,10 @@ __DATA__
             ngx.say(config.pools[2].name)
             ngx.say(config.pools[3].hosts[1].name)
 
+            -- status_codes converted to hash
+            ngx.say(config.pools[1].status_codes["50x"])
+            ngx.say(config.pools[3].hosts[1].healthcheck.status_codes["3xx"])
+
             -- config is immutable
             config["foo"] = "bar"
             config.pools[1]["hosts"] = nil
@@ -134,6 +139,7 @@ __DATA__
 
         }
     }
+--- ONLY
 --- request
 GET /a
 --- response_body
@@ -146,6 +152,8 @@ true
 /_health
 2
 1
+true
+true
 nil
 web01
 --- no_error_log
