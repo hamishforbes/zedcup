@@ -71,6 +71,9 @@ __DATA__
                 port = TEST_CONSUL_port,
             })
 
+            -- Clear up before running test
+            c:delete_key(globals.prefix, {recurse = true})
+
             local watcher = require("zedcup.worker.watcher")
 
             -- Override the cache set/delete function so we can inspect which keys were deleted

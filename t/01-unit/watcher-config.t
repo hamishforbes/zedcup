@@ -39,18 +39,6 @@ our $HttpConfig = qq{
             prefix = TEST_ZEDCUP_PREFIX
         })
 
-        -- override the config function
-        zedcup.config = function()
-            return {
-                host_revive_interval = 10,
-                cache_update_interval = 1,
-                watcher_interval = 10,
-                session_renew_interval = 10,
-                session_ttl = 30,
-                worker_lock_ttl = 30,
-                consul_wait_time = 1,
-            }
-        end
     }
 
 };
@@ -71,6 +59,9 @@ __DATA__
                 port = TEST_CONSUL_port,
             })
 
+            -- Clear up before running test
+            c:delete_key(globals.prefix, {recurse = true})
+
             local watcher = require("zedcup.worker.watcher")
 
             -- Override the cache set/delete function so we can inspect which keys were deleted
@@ -88,13 +79,24 @@ __DATA__
                 return real_set(globals.cache, key, ...)
             end
 
-            -- Clear up before running test
-            c:delete_key(globals.prefix, {recurse = true})
+            local dict = globals.dicts.cache
+            ngx.say("dict idx: ", dict:get("config_index"))
+
+            -- Run watcher, no config
+            local ok = watcher._config_watcher()
+            assert(ok == false, "First run == false")
+
+            local res, err = c:get_key(globals.prefix.."/config/.placeholder")
+            if not res then error(err) end
+            ngx.say("placeholder: ",res.status)
+            ngx.say("dict idx: ", dict:get("config_index"))
+
 
             -- Create some dummy keys
+            c:put_key(globals.prefix.."/config/consul_wait_time", 1)
             c:put_key(globals.prefix.."/config/test/key1", "foo")
             c:put_key(globals.prefix.."/config/test/key2", "foo")
-            c:put_key(globals.prefix.."/config/test/key2/key3", "foo")
+            c:put_key(globals.prefix.."/config/test/key3/key4", "foo")
 
 
 ngx.log(ngx.DEBUG, "########################################################")
@@ -103,6 +105,7 @@ ngx.log(ngx.DEBUG, "########################################################")
             ngx.say("1st: ", ok, " ", #deleted)
             for _, v in ipairs(deleted) do ngx.say("del: ", v) end
             for _, v in ipairs(set) do ngx.say("set: ", v) end
+            ngx.say("dict idx: ", (dict:get("config_index") ~= nil))
 
 ngx.log(ngx.DEBUG, "########################################################")
             -- Re-Run watcher
@@ -126,7 +129,7 @@ ngx.log(ngx.DEBUG, "########################################################")
 ngx.log(ngx.DEBUG, "########################################################")
 
             -- Remove a key
-            c:delete_key(globals.prefix.."/config/test/key2/key3")
+            c:delete_key(globals.prefix.."/config/test/key3/key4")
 
 ngx.log(ngx.DEBUG, "########################################################")
             -- Re-Run watcher
@@ -142,8 +145,12 @@ ngx.log(ngx.DEBUG, "########################################################")
 --- request
 GET /a
 --- response_body
+dict idx: nil
+placeholder: 200
+dict idx: nil
 1st: true 1
 del: config
+dict idx: true
 2nd: nil 0
 3rd: true 1
 del: config
