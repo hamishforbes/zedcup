@@ -71,9 +71,9 @@ function _M.new(id)
     -- Create request level ctx entry
     local ctx = ngx.ctx
     if not ctx.zedcup then
-        ctx.zedcup = { id = { failed = {} } }
-    else
-        ctx.zedcup.id = { failed = {} }
+        ctx.zedcup = { [id] = { failed = {} } }
+    elseif not ctx.zedcup[id] then
+        ctx.zedcup[id] = { failed = {} }
     end
 
     local self = {
@@ -83,7 +83,7 @@ function _M.new(id)
         cache        = GLOBALS["cache"],
         listeners    = {},
         op_data      = GLOBALS["op_data"][id],
-        ctx          = ctx.zedcup.id
+        ctx          = ctx.zedcup[id]
     }
 
     return setmetatable(self, mt)
@@ -155,7 +155,7 @@ local function _config(self)
     -- Merge default values for instance, pool and host
     conf = tbl_copy_merge_defaults(conf, default_config)
 
-    for pidx, pool in pairs(conf.pools) do
+    for pidx, pool in ipairs(conf.pools) do
         pool._idx = pidx
 
         if not pool.name then
@@ -178,7 +178,7 @@ local function _config(self)
 
         conf.pools[pidx] = tbl_copy_merge_defaults(pool, pool_defaults)
 
-        for hidx, host in pairs(conf.pools[pidx].hosts) do
+        for hidx, host in ipairs(conf.pools[pidx].hosts) do
             host._idx = hidx
             host._pool = pool
 
@@ -420,12 +420,12 @@ local function _persist_host_errors(premature, self)
     local pools = conf.pools
     local failed = self.ctx.failed
 
-    for pidx, error_hosts in pairs(failed) do
+    for pidx, error_hosts in pairs(failed) do -- pairs, this table can be sparse
         local pool = pools[pidx]
         local max_errors = pool.max_errors
         local hosts = pool.hosts
 
-        for hidx, _ in pairs(error_hosts) do
+        for hidx, _ in pairs(error_hosts) do -- pairs, this table can be sparse
             local host = hosts[hidx]
 
             local error_count, err = self:incr_host_error_count(host)
