@@ -262,15 +262,65 @@ GET /t
             assert(t.foo.bar == "foo-bar", "foo.bar  is 'foo-bar'")
             assert(t.foo.bar_flag == 10, "bar_flag is 10")
 
+
+            -- Conflicting entries
+            local entries = {
+                {
+                    LockIndex   = 0,
+                    Key         = "/dummy/prefix/a/b/c",
+                    Flags       = 0,
+                    Value       = "a-b-c",
+                    CreateIndex = 1,
+                    ModifyIndex = 2,
+                },
+                {
+                    LockIndex   = 0,
+                    Key         = "/dummy/prefix/a/b",
+                    Flags       = 0,
+                    Value       = "a-b",
+                    CreateIndex = 1,
+                    ModifyIndex = 2,
+                },
+            }
+
+            local t = entries2table(entries, "/dummy/prefix/")
+            ngx.log(ngx.DEBUG, require("cjson").encode(t))
+
+            assert(t.a.b.c == "a-b-c", "a.b.c == 'a-b-c'")
+
+            local entries = {
+                {
+                    LockIndex   = 0,
+                    Key         = "/dummy/prefix/a/b",
+                    Flags       = 0,
+                    Value       = "a-b",
+                    CreateIndex = 1,
+                    ModifyIndex = 2,
+                },
+                {
+                    LockIndex   = 0,
+                    Key         = "/dummy/prefix/a/b/c",
+                    Flags       = 0,
+                    Value       = "a-b-c",
+                    CreateIndex = 1,
+                    ModifyIndex = 2,
+                },
+
+            }
+
+            local t = entries2table(entries, "/dummy/prefix/")
+            ngx.log(ngx.DEBUG, require("cjson").encode(t))
+
+            assert(t.a.b == "a-b", "a.b == 'a-b'")
+
         }
     }
 --- request
 GET /a
---- response_body
+--- error_log
+Conflict /dummy/prefix/a/b has an existing value
+Conflict /dummy/prefix/a/b/c has an existing value
 
---- no_error_log
-[error]
-[warn]
 
 === TEST 5: table2txn
 --- http_config eval: $::HttpConfig

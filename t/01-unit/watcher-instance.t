@@ -94,11 +94,11 @@ __DATA__
             -- Create some dummy keys
             c:put_key(globals.prefix.."/instances/test/key1", "foo")
             c:put_key(globals.prefix.."/instances/test/key2", "foo")
-            c:put_key(globals.prefix.."/instances/test/key2/key3", "foo")
+            c:put_key(globals.prefix.."/instances/test/key3/key4", "foo")
 
             c:put_key(globals.prefix.."/instances/test2/key1", "foo")
             c:put_key(globals.prefix.."/instances/test2/key2", "foo")
-            c:put_key(globals.prefix.."/instances/test2/key2/key3", "foo")
+            c:put_key(globals.prefix.."/instances/test2/key3/key4", "foo")
 
 ngx.log(ngx.DEBUG, "########################################################")
             -- Run watcher
