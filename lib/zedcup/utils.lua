@@ -1,5 +1,6 @@
 local ngx_log = ngx.log
 local ngx_DEBUG = ngx.DEBUG
+local ngx_ERR = ngx.ERR
 local tbl_insert = table.insert
 local str_find = string.find
 local str_sub = string.sub
@@ -110,17 +111,18 @@ local function entries2table(entries, prefix, cb)
                 val = false
             end
 
-            if type(start) ~= "table" then
-                return nil, "Could not parse config from Consul"
+            if idx == last then
 
-            -- Last component of the key, set the value
-            elseif idx == last then
-                -- If a callback is specified use it to set the actual value
-                -- Otherwise set to the entry Value
-                if cb then
-                    cb(start, part, entry)
+                if type(start) ~= "table" or start[part] ~= nil then
+                    ngx_log(ngx_ERR, "[zedcup] Conflict ", entry.Key, " has an existing value, skipping")
                 else
-                    start[part] = val
+                    -- If a callback is specified use it to set the actual value
+                    -- Otherwise set to the entry Value
+                    if cb then
+                        cb(start, part, entry)
+                    else
+                        start[part] = val
+                    end
                 end
 
             elseif not start[part] then
