@@ -393,7 +393,6 @@ primary/web02
 
             gb_res = nil
 
-
             ngx.say("OK")
         }
     }
@@ -423,14 +422,21 @@ OK
             -- Host 1 is down
             local tbl_copy = require("zedcup.utils").tbl_copy
             local conf = tbl_copy(DEFAULT_CONF)
+            local conf2 = tbl_copy(DEFAULT_CONF)
 
             conf.pools[1].hosts[1].port = TEST_NGINX_PORT + 1
+
+            conf2.persist_errors = false -- do not persist front end errors
 
             -- Configure the instance
             local ok, err = zedcup.configure_instance("test", conf)
             if not ok then ngx.say(err) end
+            local ok, err = zedcup.configure_instance("test2", conf2)
+            if not ok then ngx.say(err) end
 
             local handler, err = zedcup.create_handler("test")
+            if err then error(err) end
+            local handler2, err = zedcup.create_handler("test2")
             if err then error(err) end
 
 
@@ -459,6 +465,22 @@ OK
                 ngx.say("nil")
             end
 
+            local sock, err = handler2:connect()
+            if err then error(err) end
+
+            ngx.sleep(0.1) -- allow persist_host_errors to run
+
+            local state = handler:state()
+            ngx.say(state[1][1].error_count)
+
+            local state = handler2:state()
+            ngx.log(ngx.DEBUG, require("cjson").encode(state))
+            if state then
+                ngx.say("State persisted")
+            else
+                ngx.say("OK")
+            end
+
         }
     }
 --- request
@@ -466,6 +488,8 @@ GET /a
 --- response_body
 primary/web02
 primary/web01: connection refused
+1
+OK
 
 
 === TEST 6: state
