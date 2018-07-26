@@ -82,7 +82,7 @@ function _M.new(id)
         state_prefix = GLOBALS.prefix.."/state/"..id.."/",
         cache        = GLOBALS["cache"],
         listeners    = {},
-        op_data      = GLOBALS["op_data"][id],
+        op_data      = GLOBALS.op_data[id],
         ctx          = ctx.zedcup[id]
     }
 
@@ -221,8 +221,8 @@ function _M.config(self)
     if hit_level ~= 1 then
         -- Reset op_data when we get config from higher cache levels
         if DEBUG then ngx_log(ngx_DEBUG, "[zedcup (", self.id, ")] Reset op data") end
-        GLOBALS["op_data"][self.id] = {}
-        self.op_data = GLOBALS["op_data"][self.id]
+        GLOBALS.op_data[self.id] = {}
+        self.op_data = GLOBALS.op_data[self.id]
     end
 
     return utils.tbl_copy(config)

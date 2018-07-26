@@ -779,3 +779,109 @@ ctx2B.foo: test2B
 --- no_error_log
 [error]
 [warn]
+
+=== TEST 10: op data
+--- http_config eval: $::HttpConfig
+--- config
+    location = /a {
+        content_by_lua_block {
+            local zedcup = require("zedcup")
+            local globals = zedcup.globals()
+
+            local c = require("resty.consul"):new({
+                host = TEST_CONSUL_HOST,
+                port = TEST_CONSUL_port,
+            })
+
+            -- Clear up before running test
+            c:delete_key(globals.prefix, {recurse = true})
+
+            -- Configure the instances
+            local ok, err = zedcup.configure_instance("test", DEFAULT_CONF)
+            if not ok then ngx.say(err) end
+            local ok, err = zedcup.configure_instance("test2", DEFAULT_CONF)
+            if not ok then ngx.say(err) end
+
+            local handler, err = zedcup.create_handler("test")
+            if err then error(err) end
+            local handler2, err = zedcup.create_handler("test2")
+            if err then error(err) end
+
+            handler.op_data.foo = "test1"
+            ngx.say("op_data1.foo: ", handler.op_data.foo)
+            ngx.say("op_data2.foo: ", handler2.op_data.foo)
+            ngx.say()
+
+            handler2.op_data.foo = "test2"
+            ngx.say("op_data1.foo: ", handler.op_data.foo)
+            ngx.say("op_data2.foo: ", handler2.op_data.foo)
+            ngx.say()
+
+            -- Recreate handlers, should not override
+            local handlerB, err = zedcup.create_handler("test")
+            if err then error(err) end
+            local handler2B, err = zedcup.create_handler("test2")
+            if err then error(err) end
+
+            ngx.say("op_data1.foo: ", handler.op_data.foo)
+            ngx.say("op_data2.foo: ", handler2.op_data.foo)
+            ngx.say("op_data1B.foo: ", handlerB.op_data.foo)
+            ngx.say("op_data2B.foo: ", handler2B.op_data.foo)
+            ngx.say()
+
+            handlerB.op_data.foo = "test1B"
+            handler2B.op_data.foo = "test2B"
+
+            ngx.say("op_data1.foo: ", handler.op_data.foo)
+            ngx.say("op_data2.foo: ", handler2.op_data.foo)
+            ngx.say("op_data1B.foo: ", handlerB.op_data.foo)
+            ngx.say("op_data2B.foo: ", handler2B.op_data.foo)
+            ngx.say()
+
+            -- Op data is cleared when config is pulled from cache
+            local ok, err = handler:config()
+            if not ok then error(err) end
+
+            ngx.say("op_data1.foo: ", handler.op_data.foo)
+            ngx.say("op_data1B.foo: ", handlerB.op_data.foo)
+            ngx.say()
+
+            handler.op_data.foo = "C"
+
+            local handlerC, err = zedcup.create_handler("test")
+            if err then error(err) end
+
+            ngx.say("op_data1.foo: ", handler.op_data.foo)
+            ngx.say("op_data1B.foo: ", handlerB.op_data.foo)
+            ngx.say("op_data1C.foo: ", handlerC.op_data.foo)
+
+        }
+    }
+--- request
+GET /a
+--- response_body
+op_data1.foo: test1
+op_data2.foo: nil
+
+op_data1.foo: test1
+op_data2.foo: test2
+
+op_data1.foo: test1
+op_data2.foo: test2
+op_data1B.foo: test1
+op_data2B.foo: test2
+
+op_data1.foo: test1B
+op_data2.foo: test2B
+op_data1B.foo: test1B
+op_data2B.foo: test2B
+
+op_data1.foo: nil
+op_data1B.foo: test1B
+
+op_data1.foo: C
+op_data1B.foo: test1B
+op_data1C.foo: C
+--- no_error_log
+[error]
+[warn]
