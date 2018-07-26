@@ -417,6 +417,11 @@ local function _persist_host_errors(premature, self)
         return nil, err
     end
 
+    if conf.persist_errors == false then
+        if DEBUG then ngx_log(ngx_DEBUG, "[zedcup (", self.id, ")] Host error persistence disabled") end
+        return
+    end
+
     local pools = conf.pools
     local failed = self.ctx.failed
 
@@ -570,7 +575,7 @@ local function _try_connect(self, sock, host)
 end
 
 
-local function connect(self, sock)
+local function _connect(self, sock)
     local config, err = self:config()
     if not config then
         return nil, "Could not retrieve config: ".. (err or "")
@@ -632,14 +637,22 @@ local function connect(self, sock)
     -- Didnt find any pools with working hosts
     return nil, "No available upstream hosts"
 end
-_M.connect = connect
+
+
+function _M.connect(self, sock)
+    local sock, err = _connect(self, sock)
+
+    self:persist_host_errors()
+
+    return sock, err
+end
 
 
 local function _try_request(self, params)
     local httpc = resty_http:new()
     self.httpc = httpc
 
-    local httpc, err = connect(self, httpc)
+    local httpc, err = _connect(self, httpc, false) -- Don't trigger persist_host_errors
 
     if not httpc then
         -- Could not connect
@@ -693,7 +706,7 @@ local function _try_request(self, params)
 end
 
 
-function _M.request(self, params)
+local function _request(self, params)
     if not http_ok then
         return nil, "Could not load resty.http"
     end
@@ -721,6 +734,14 @@ function _M.request(self, params)
     until res == false
 
     if DEBUG then ngx_log(ngx_DEBUG, "[zedcup (", self.id, ")] Could not complete HTTP request") end
+
+    return res, err
+end
+
+function _M.request(self, params)
+    local res, err = _request(self, params)
+
+    self:persist_host_errors()
 
     return res, err
 end
