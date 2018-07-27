@@ -150,6 +150,7 @@ end
 
 
 local function _healthcheck_instance(instance)
+    if DEBUG then ngx_log(ngx_DEBUG, "[zedcup] Healthchecking instance: ", instance) end
     local handler, err = zedcup.create_handler(instance)
     if not handler then
         if err then ngx_log(ngx_ERR, "[zedcup] Healthchecker could not create handler '", instance, "' :", err) end
@@ -198,7 +199,11 @@ local function healthcheck(premature)
     local lock_key = "healthcheck"
 
      -- Acquire a full cluster lock
-    if not locks.worker.acquire(lock_key) or not locks.cluster.acquire(lock_key) then
+    if not locks.worker.acquire(lock_key) then
+        return
+    end
+    if not locks.cluster.acquire(lock_key) then
+        locks.worker.release(lock_key)
         return
     end
 
@@ -222,13 +227,25 @@ end
 _M._healthcheck = healthcheck
 
 
-function _M.run()
+local function _run()
     if not http_ok then
         ngx_log(ngx_ERR, "[zedcup] Could not load resty.http, not running healthcheck worker")
         return false
     end
 
-    return ngx.timer.every(zedcup.config().healthcheck_interval, healthcheck)
+    local ok, err = ngx.timer.every(zedcup.config().healthcheck_interval, healthcheck)
+    if not ok then
+        ngx_log(ngx_ERR, "[zedcup] Could not start healthcheck worker: ", err)
+    elseif DEBUG then
+        ngx_log(ngx_DEBUG, "[zedcup] Started healthcheck worker")
+    end
+
+    return ok, err
+end
+
+
+function _M.run()
+    return ngx.timer.at(0, _run)
 end
 
 

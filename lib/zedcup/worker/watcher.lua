@@ -253,14 +253,18 @@ end
 
 
 function _M.run()
-    local ok, err = ngx.timer.at(zedcup.config().watcher_interval, watcher, _config_watcher, "config_watcher")
+    local ok, err = ngx.timer.at(0, watcher, _config_watcher, "config_watcher")
     if not ok then
         ngx.log(ngx.ERR, "[zedcup] Failed to start global config watcher: ", err)
+    elseif DEBUG then
+        ngx_log(ngx_DEBUG, "[zedcup] Started global config watcher")
     end
 
-    local ok, err = ngx.timer.at(zedcup.config().watcher_interval, watcher, _instance_watcher, "instance_watcher")
+    local ok, err = ngx.timer.at(0, watcher, _instance_watcher, "instance_watcher")
     if not ok then
         ngx.log(ngx.ERR, "[zedcup] Failed to start instance watcher: ", err)
+    elseif DEBUG then
+        ngx_log(ngx_DEBUG, "[zedcup] Started instance watcher")
     end
 
     return true

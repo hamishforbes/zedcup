@@ -99,7 +99,7 @@ end
 function _M.initted() return INIT end
 
 
-local function _run_workers()
+function _M.run_workers()
     if DEBUG then ngx_log(ngx_DEBUG, "[zedcup] Starting workers") end
 
     -- cache updates (no lock)
@@ -126,19 +126,11 @@ local function _run_workers()
         ngx_log(ngx_ERR, "[zedcup] Failed to start revive worker: ", err)
     end
 
-    -- session renewal
+    -- session renewal (no lock)
     local ok, err = require("zedcup.worker.session").run()
     if not ok then
         ngx_log(ngx_ERR, "[zedcup] Failed to start session worker: ", err)
     end
-end
-
-
-function _M.run_workers()
-    -- Workers neede access to config, which cannot be retrieved in the worker_init phase
-    -- Start a timer (where sockets work) and start workers there
-    local ok, err = ngx.timer.at(0, _run_workers)
-    if not ok then error(err) end
 end
 
 
@@ -356,6 +348,15 @@ local function instance_list()
     end
 
     if DEBUG then ngx_log(ngx_DEBUG, "[zedcup] Instance list hit level: ", hit_level) end
+    if hit_level ~= 1 then
+        -- JSON objects can only have string keys
+        -- the instance list is a mixed table of numeric and string keys
+        -- numberify all the keys to allow ipairs iteration again
+        for k, v in pairs(list) do
+            list[k] = nil
+            list[tonumber(k) or k] = v
+        end
+    end
 
     return list
 end

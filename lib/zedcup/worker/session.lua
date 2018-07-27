@@ -57,7 +57,12 @@ end
 
 
 function _M.run()
-    return ngx.timer.at(0, renew)
+    local ok, err = ngx.timer.at(0, renew)
+    if ok and DEBUG then
+        ngx_log(ngx_DEBUG, "[zedcup] Started session renewal worker")
+    end
+
+    return ok, err
 end
 
 

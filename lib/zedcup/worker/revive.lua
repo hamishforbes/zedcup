@@ -133,9 +133,20 @@ end
 _M._revive = revive
 
 
-function _M.run()
-    return ngx.timer.every(zedcup.config().host_revive_interval, revive)
+local function _run()
+    local ok, err =  ngx.timer.every(zedcup.config().host_revive_interval, revive)
+    if not ok then
+        ngx_log(ngx_ERR, "[zedcup] Could not start revive worker: ", err)
+    elseif DEBUG then
+        ngx_log(ngx_DEBUG, "[zedcup] Started revive worker")
+    end
+
+    return ok, err
 end
 
+
+function _M.run()
+    return ngx.timer.at(0, _run)
+end
 
 return _M
