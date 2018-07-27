@@ -67,7 +67,7 @@ function _M.init(opts)
 
     for key, name in pairs(opts.dicts) do
         if not ngx.shared[name] then
-            error("[zedcup] ", key ," dictionary not found: ", name)
+            return false, "[zedcup] ".. key .." dictionary not found: "..name
         end
 
         GLOBALS.dicts[key]      = ngx.shared[name]
@@ -84,7 +84,7 @@ function _M.init(opts)
             }
         )
     if not cache then
-        error("[zedcup] Failed to initialise cache: "..tostring(err))
+        return false, "Failed to initialise cache: "..tostring(err)
     end
 
     GLOBALS["cache"] = cache
