@@ -58,7 +58,13 @@ our $HttpConfig = qq{
                 {
                     name = "secondary",
                     hosts = {
-                        { name = "dr01", host = "127.0.0.1", port = TEST_NGINX_PORT}
+                        { name = "dr01", host = "127.0.0.1", port = TEST_NGINX_PORT + 1}
+                    }
+                },
+                {
+                    name = "tertiary",
+                    hosts = {
+                        { name = "3rd", host = "127.0.0.1", port = TEST_NGINX_PORT}
                     }
                 },
             }
@@ -67,23 +73,6 @@ our $HttpConfig = qq{
     }
 
     init_worker_by_lua_block {
-        ngx.timer.at(0, function()
-            if require("zedcup.locks").worker.acquire("bootstrap") then
-                local c = require("resty.consul"):new({
-                    host = TEST_CONSUL_HOST,
-                    port = TEST_CONSUL_port,
-                })
-
-                -- Clear up before running tests
-                local prefix = require("zedcup").globals().prefix
-                c:delete_key(prefix, {recurse = true})
-
-                -- Configure the instance
-                local ok, err = require("zedcup").configure_instance("test", DEFAULT_CONF)
-                if not ok then error(err) end
-            end
-        end)
-
         require("zedcup").run_workers()
     }
 
@@ -92,6 +81,56 @@ our $HttpConfig = qq{
 run_tests();
 
 __DATA__
+=== TEST 0: Bootstrap
+--- http_config eval: $::HttpConfig
+--- config
+    location = /a {
+        content_by_lua_block {
+            local c = require("resty.consul"):new({
+                host = TEST_CONSUL_HOST,
+                port = TEST_CONSUL_port,
+            })
+
+            -- Clear up before running tests
+            local prefix = require("zedcup").globals().prefix
+            c:delete_key(prefix, {recurse = true})
+
+            -- Set low intervals for tests
+            local ok, err = require("zedcup").configure({
+                host_revive_interval = 1,
+                cache_update_interval = 1,
+                healthcheck_interval = 1,
+                watcher_interval = 1,
+                session_renew_interval = 1,
+                session_ttl = 10,
+            })
+            if not ok then error(err) end
+
+            -- Configure the instance
+            local ok, err = require("zedcup").configure_instance("test", DEFAULT_CONF)
+            if not ok then error(err) end
+
+            ngx.say("OK")
+        }
+    }
+
+    location / {
+        echo "OK";
+    }
+--- request
+GET /a
+--- response_body
+OK
+--- no_error_log
+[warn]
+--- error_log
+Starting workers
+Started global config watcher
+Started instance watcher
+Started session renewal worker
+Started healthcheck worker
+
+
 === TEST 1: Basic
 --- http_config eval: $::HttpConfig
 --- config

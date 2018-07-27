@@ -165,11 +165,36 @@ baz
             ngx.log(ngx.DEBUG, require("cjson").encode(list))
             if not list then error(err) end
 
+            ngx.say(#list)
             ngx.say(list["test"])
             ngx.say(list["baz"])
             ngx.say(list["asdf"])
 
             ngx.say(list["foobar"])
+
+            -- iterable
+            for _, instance in ipairs(list) do
+                ngx.say(instance)
+            end
+
+            -- hax, reset the internal lru cache
+            globals.cache.lru:flush_all()
+
+            local list, err = zedcup.instance_list()
+            ngx.log(ngx.DEBUG, require("cjson").encode(list))
+            if not list then error(err) end
+
+            ngx.say(#list)
+            ngx.say(list["test"])
+            ngx.say(list["baz"])
+            ngx.say(list["asdf"])
+
+            ngx.say(list["foobar"])
+
+            -- iterable
+            for _, instance in ipairs(list) do
+                ngx.say(instance)
+            end
 
         }
     }
@@ -177,10 +202,22 @@ baz
 GET /a
 --- response_body
 0
+3
 true
 true
 true
 nil
+asdf
+test
+baz
+3
+true
+true
+true
+nil
+asdf
+test
+baz
 --- no_error_log
 [error]
 [warn]
