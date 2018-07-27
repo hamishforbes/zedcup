@@ -42,6 +42,29 @@ our $HttpConfig = qq{
 
 };
 
+our $AltHttpConfig = qq{
+    lua_package_path "$pwd/lib/?.lua;;";
+    error_log logs/error.log debug;
+
+    lua_shared_dict zedcup_cache 1m;
+    lua_shared_dict zedcup_locks 1m;
+    lua_shared_dict zedcup_ipc 1m;
+    lua_shared_dict zedcup_alt 1m;
+
+    init_by_lua_block {
+        require("resty.core")
+
+        local zedcup = require("zedcup")
+        zedcup._debug(true)
+
+        TEST_CONSUL_PORT = $ENV{TEST_CONSUL_PORT}
+        TEST_CONSUL_HOST = "$ENV{TEST_CONSUL_HOST}"
+        TEST_NGINX_PORT  = $ENV{TEST_NGINX_PORT}
+        TEST_ZEDCUP_PREFIX = "$ENV{TEST_ZEDCUP_PREFIX}"
+
+    }
+};
+
 run_tests();
 
 __DATA__
@@ -440,3 +463,61 @@ GET /a
 OK
 --- error_log
 Error running global listener
+
+=== TEST 5: init
+--- http_config eval: $::AltHttpConfig
+--- config
+    location = /a {
+
+        content_by_lua_block {
+            local zedcup = require("zedcup")
+            ngx.say(zedcup.initted())
+
+            local ok, err = zedcup.init({
+                dicts = {
+                    cache = "missing",
+                }
+            })
+            if not ok then ngx.say(err) else ngx.say("OK") end
+            ngx.say(zedcup.initted())
+
+            local ok, err = zedcup.init({
+                dicts = {
+                    locks = "missing",
+                }
+            })
+            if not ok then ngx.say(err) else ngx.say("OK") end
+            ngx.say(zedcup.initted())
+
+            local ok, err = zedcup.init({
+                dicts = {
+                    ipc = "missing",
+                }
+            })
+            if not ok then ngx.say(err) else ngx.say("OK") end
+            ngx.say(zedcup.initted())
+
+            local ok, err = zedcup.init({
+                dicts = {
+                    cache = "zedcup_alt",
+                }
+            })
+            if not ok then ngx.say(err) else ngx.say("OK") end
+            ngx.say(zedcup.initted())
+        }
+    }
+--- request
+GET /a
+--- response_body
+false
+[zedcup] cache dictionary not found: missing
+false
+[zedcup] locks dictionary not found: missing
+false
+[zedcup] ipc dictionary not found: missing
+false
+OK
+true
+--- no_error_log
+[error]
+[warn]
