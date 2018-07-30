@@ -25,15 +25,11 @@ local function _revive_instance(instance)
     local state, err = handler:state()
     if not state then
         if type(err) == "table"  then
-            -- Consul response object
-            if err.status ~= 404 then
-                ngx_log(ngx_ERR, "[zedcup] Could not get state '", instance, "' :", err.status, " ", err.body)
-
-                return false
-            end
-        else
+                ngx_log(ngx_ERR, "[zedcup] Could not get state '", instance, "': ", err.status, " ", err.body)
+            return false
+         elseif err then
             ngx_log(ngx_ERR, "[zedcup] Could not get state '", instance, "' :", err)
-             return false
+            return false
         end
 
         if DEBUG then ngx_log(ngx_DEBUG, "[zedcup] No state for '", instance, "' skipping") end

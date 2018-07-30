@@ -211,7 +211,7 @@ local function healthcheck(premature)
 
     local instances = zedcup.instance_list()
 
-    -- Run a thread to run healthchecks for each instance
+    -- Run a thread to perform healthchecks for each instance
     utils.thread_map(instances, _healthcheck_instance)
 
     local duration = ngx.now() - start
