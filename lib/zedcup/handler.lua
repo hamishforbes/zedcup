@@ -176,11 +176,16 @@ local function _config(self)
         end
 
 
-        conf.pools[pidx] = tbl_copy_merge_defaults(pool, pool_defaults)
+        pool = tbl_copy_merge_defaults(pool, pool_defaults)
+        conf.pools[pidx] = pool
+
+        -- Remove the hosts key to prevent recursion
+        local host_pool = tbl_copy(pool)
+        host_pool.hosts = nil
 
         for hidx, host in ipairs(conf.pools[pidx].hosts) do
             host._idx = hidx
-            host._pool = pool
+            host._pool = host_pool
 
             if not host.name then
                 host.name = hidx
@@ -763,8 +768,10 @@ function _M.set_keepalive(self, ...)
     end
 
     if not keepalive_pool and connected_host then
-        keepalive_pool = self.ctx.connected_host._pool.keepalive_timeout
+        keepalive_pool = self.ctx.connected_host._pool.keepalive_pool
     end
+
+    if DEBUG then ngx_log(ngx_DEBUG, "[zedcup] Setting keepalive: ", keepalive_timeout, "/", keepalive_pool) end
 
     return self.httpc:set_keepalive(keepalive_timeout, keepalive_pool)
 end
