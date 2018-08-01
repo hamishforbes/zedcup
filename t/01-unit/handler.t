@@ -962,7 +962,7 @@ OK
 --- error_log
 Setting keepalive: 60000/128
 
-=== TEST 11: set_keepalive custom values
+=== TEST 12: set_keepalive custom values
 --- http_config eval: $::HttpConfig
 --- config
     location = /a {
@@ -1012,3 +1012,71 @@ OK
 [warn]
 --- error_log
 Setting keepalive: 400/300
+
+=== TEST 13: http passthrough methods
+--- http_config eval: $::HttpConfig
+--- config
+    location = /a {
+        content_by_lua_block {
+            local zedcup = require("zedcup")
+            local globals = zedcup.globals()
+
+            local c = require("resty.consul"):new({
+                host = TEST_CONSUL_HOST,
+                port = TEST_CONSUL_port,
+            })
+
+            -- Clear up before running test
+            c:delete_key(globals.prefix, {recurse = true})
+
+            -- Configure the instance
+            local ok, err = zedcup.configure_instance("test", DEFAULT_CONF)
+            if not ok then ngx.say(err) end
+
+            local handler, err = zedcup.create_handler("test")
+            if err then error(err) end
+
+
+            local body_reader, err = handler:get_client_body_reader()
+            assert(err == nil, "body reader before request: "..tostring(err))
+
+            assert( handler:set_keepalive() == nil, "keepalive, no request")
+            assert( handler:close() == nil, "close, no request")
+            assert( handler:get_reused_times() == nil, "reused times, no request")
+
+            local res, err = handler:request({
+                path = "/b",
+                body = body_reader
+            })
+            if err then error(err) end
+
+            res:read_body()
+
+            assert( handler:set_keepalive(), "keepalive, after request")
+
+            local res, err = handler:request({
+                path = "/b",
+            })
+            if err then error(err) end
+
+            res:read_body()
+
+            assert( handler:get_reused_times(), "reused times, after request")
+            assert( handler:close() , "close, after request")
+
+            ngx.say("OK")
+        }
+
+    }
+
+    location = /b {
+        echo "OK";
+    }
+
+--- request
+GET /a
+--- response_body
+OK
+--- no_error_log
+[error]
+[warn]
