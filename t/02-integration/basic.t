@@ -200,7 +200,7 @@ TEST OK
                 ngx.log(ngx.DEBUG, "HOST DOWN")
             end), "Bind failed")
 
-            ngx.sleep(4) -- Enough time for healthcheck worker to fail
+            ngx.sleep(6) -- Enough time for healthcheck worker to fail
 
 
             local res, err = handler:request({ path = "/test" })

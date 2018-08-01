@@ -43,7 +43,9 @@ our $HttpConfig = qq{
         })
 
         DEFAULT_CONF = {
-
+            healthcheck = {
+                path = "/_instance_check"
+            },
             pools = {
                 {
                     healthcheck = true,
@@ -140,6 +142,14 @@ __DATA__
             if err then error(err) end
             ngx.say(tonumber(res.body[1].Value) == ngx.time())
 
+            local res, err = c:get_key(globals.prefix.."/state/test/2/1/last_check")
+            if err then error(err) end
+            if res.status == 200 then
+                ngx.say(tonumber(res.body[1].Value) == ngx.time())
+            else
+                ngx.say("fail")
+            end
+
             local res, err = c:get_key(globals.prefix.."/state/test2/3/1/error_count")
             if err then error(err) end
             ngx.say(res.body[1].Value)
@@ -153,6 +163,13 @@ __DATA__
 
 location = / {
     echo "OK";
+}
+
+location = /_instance_check {
+    content_by_lua_block {
+        ngx.say("OK INSTANCE")
+        ngx.log(ngx.DEBUG, "Instance Healthcheck")
+    }
 }
 
 location = /_health {
@@ -171,8 +188,11 @@ Connect err: test2:tertiary/1 : connection refused
 Connect err: test:tertiary/1 : connection refused
 1
 true
+true
 1
 true
 --- no_error_log
 [error]
 [warn]
+--- error_log
+Instance Healthcheck
