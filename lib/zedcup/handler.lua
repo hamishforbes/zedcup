@@ -716,6 +716,10 @@ local function _request(self, params)
         return nil, "Could not load resty.http"
     end
 
+    if not params then
+        return nil, "No request parameters"
+    end
+
     local body_reusable = (type(params.body) ~= 'function')
 
     local res, err

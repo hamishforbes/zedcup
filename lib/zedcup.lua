@@ -15,14 +15,14 @@ local _M = {
 }
 
 local default_global_config = {
-    host_revive_interval = 10,
-    cache_update_interval = 1,
-    healthcheck_interval = 10,
-    watcher_interval = 10,
+    host_revive_interval   = 10,
+    cache_update_interval  = 1,
+    healthcheck_interval   = 10,
+    watcher_interval       = 10,
     session_renew_interval = 10,
-    session_ttl = 30,
-    worker_lock_ttl = 30,
-    consul_wait_time = 600, -- Default Consul max
+    session_ttl            = 30,
+    worker_lock_ttl        = 30,
+    consul_wait_time       = 600,
 }
 
 local events = {
