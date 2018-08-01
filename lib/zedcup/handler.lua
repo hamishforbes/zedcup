@@ -743,6 +743,7 @@ local function _request(self, params)
     return res, err
 end
 
+
 function _M.request(self, params)
     local res, err = _request(self, params)
 
@@ -752,12 +753,14 @@ function _M.request(self, params)
 end
 
 
-function _M.get_client_body_reader(self, ...)
-    return self.httpc:get_client_body_reader(...)
+function _M.get_client_body_reader(_, ...)
+    return resty_http:get_client_body_reader(...)
 end
 
 
 function _M.set_keepalive(self, ...)
+    if not self.httpc then return nil end
+
     local connected_host = self.ctx.connected_host
 
     local keepalive_timeout = select(1, ...)
@@ -778,11 +781,13 @@ end
 
 
 function _M.get_reused_times(self, ...)
-    return self.httpc:getreusedtimes(...)
+    if not self.httpc then return nil end
+    return self.httpc:get_reused_times(...)
 end
 
 
 function _M.close(self, ...)
+    if not self.httpc then return nil end
     return self.httpc:close(...)
 end
 
