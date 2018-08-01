@@ -17,14 +17,12 @@ local _M = {
     _VERSION = "0.0.1",
 }
 
-local function _healthcheck_host(host, handler, state)
-    local pool = host._pool
-
+local function _healthcheck_host(host, pool, handler, state)
     -- No healthcheck configured
     if not host.healthcheck and not pool.healthcheck then return true end
 
     -- Healthcheck can be configured on the pool or the host
-    local params = host.healthcheck or host._pool.healthcheck
+    local params = host.healthcheck or pool.healthcheck
 
     -- May not have any state on first check
     local host_state = {}
@@ -181,7 +179,11 @@ local function _healthcheck_instance(instance)
     -- Iterate over pools and launch a thread to healthcheck each host
     for pidx, pool in ipairs(conf.pools) do
         handler.ctx.failed[pidx] = {}
-        utils.thread_map(pool.hosts, _healthcheck_host, handler, state[pidx])
+
+        -- Inherit healthcheck from instance level
+        pool.healthcheck = pool.healthcheck or conf.healthcheck
+
+        utils.thread_map(pool.hosts, _healthcheck_host, pool, handler, state[pidx])
     end
 
     -- Process healthcheck failures inline
