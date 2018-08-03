@@ -32,6 +32,9 @@ local function renew(premature, attempt)
         return ngx.timer.at(delay, renew)
     end
 
+    -- Get a session first to ensure it exists
+    zedcup_session.get()
+
     -- Got the lock, renew the session
     local ok, err, res = zedcup_session.renew()
 
@@ -42,11 +45,13 @@ local function renew(premature, attempt)
         -- Failed, delay retry
         delay = utils.error_delay(attempt)
 
+        local status = 0
         if not err and res then
             err = res.body
+            status = res.status
         end
 
-        ngx_log(ngx_ERR, "[zedcup] Session renew failed, retrying in ", delay, "s :", err)
+        ngx_log(ngx_ERR, "[zedcup] Session renew failed (", status ,"), retrying in ", delay, "s: ", err)
         return ngx.timer.at(delay, renew, attempt+1)
     end
 

@@ -56,6 +56,7 @@ local function renew()
     local res, err = consul:put("/session/renew/"..sessionid, "")
 
     if err or res.status ~= 200 then
+        sessionid = nil -- Reset session if we fail to renew
         return false, err, res
     end
 
