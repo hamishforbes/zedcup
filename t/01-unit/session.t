@@ -178,11 +178,22 @@ true
             ngx.say(ok)
             ngx.say(err)
 
+            local res, err = c:get("/session/info/" .. id)
+            ngx.log(ngx.DEBUG, res.status, ": ", require("cjson").encode(res.body) )
+            ngx.say("Info: ", #res.body)
+
             ngx.sleep(25) -- bit flakey, consul session expiry isn't exact
 
             -- Check info again
             local res, err = c:get("/session/info/" .. id)
-            ngx.log(ngx.DEBUG, require("cjson").encode(res.body) )
+            ngx.log(ngx.DEBUG, res.status, ": ", require("cjson").encode(res.body) )
+            ngx.say("Info: ", #res.body)
+
+            -- Renew an expired session
+            local ok, err = session.renew()
+            ngx.say(ok)
+            ngx.say(err)
+
 
             local id2, err = session.get()
             ngx.log(ngx.DEBUG, id2)
@@ -190,6 +201,7 @@ true
                 error(err)
             end
             assert(id ~= id2, "Did not create a new session!")
+            ngx.say("OK")
 
         }
     }
@@ -201,6 +213,11 @@ nil
 nil
 true
 nil
+Info: 1
+Info: 0
+false
+nil
+OK
 --- no_error_log
 [error]
 [warn]
@@ -231,13 +248,13 @@ nil
             -- Clear up before running test
             c:delete_key(globals.prefix, {recurse = true})
 
+            local id, err = session.get()
+            ngx.log(ngx.DEBUG, id)
+
             -- Start worker
             local ok, err = worker.run()
             ngx.log(ngx.DEBUG, ok, ": ", err)
             assert(ok, "Worker did not start")
-
-            local id, err = session.get()
-            ngx.log(ngx.DEBUG, id)
 
             ngx.sleep(25)
 
@@ -246,7 +263,7 @@ nil
             if err then
                 error(err)
             end
-            assert(id == id2, "Session was not renewed")
+            assert(id == id2, "Session did not renew")
             ngx.say("OK")
         }
     }
