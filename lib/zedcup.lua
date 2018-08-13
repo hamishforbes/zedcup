@@ -269,6 +269,9 @@ function _M.configure_instance(instance, config)
     end
 
     --if DEBUG then ngx_log(ngx_DEBUG, "Instance Res:", res.status, "\n", require("cjson").encode(res.body)) end
+    if res.status ~= 200 then
+        return nil, res.body
+    end
 
     local err = res.body["Errors"]
     if err ~= ngx.null then

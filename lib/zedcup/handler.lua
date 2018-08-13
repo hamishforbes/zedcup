@@ -31,18 +31,18 @@ local default_config = {
 }
 
 local pool_defaults = {
-    up = true,
-    method = "weighted_rr",
-    timeout = 2000, -- socket connect timeout
+    up            = true,
+    method        = "weighted_rr",
+    timeout       = 2000, -- socket connect timeout
     error_timeout = 60,
-    max_errors = 3,
+    max_errors    = 3,
     min_rises  = 3, -- TODO: this
-    hosts = {},
+    hosts         = {},
 
     -- HTTP defaults
-    read_timeout = 10000,
+    read_timeout      = 10000,
     keepalive_timeout = 60000,
-    keepalive_pool = 128,
+    keepalive_pool    = 128,
 
 }
 
