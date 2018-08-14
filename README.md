@@ -226,6 +226,7 @@ Healthchecks are only performed from 1 node in the cluster at a time.
 Defaults
 ```lua
 {
+    ssl        = nil,   -- Override instance SSL configuration
     interval   = 60,    -- Frequency of checks
     method     = "GET", -- HTTP requset method
     path       = "/",   -- HTTP URI path

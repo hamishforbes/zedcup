@@ -57,7 +57,13 @@ local function _healthcheck_host(host, pool, handler, state)
     -- Use healthcheck specific connect timeout or fallback to pool configuration
     httpc:set_timeout(params.timeout or pool.timeout)
 
-    local ok, err = httpc:connect(host.host, host.port)
+    local ok, err
+    if host.port then
+        ok, err = httpc:connect(host.host, host.port)
+    else
+        ok, err = httpc:connect(host.host)
+    end
+
     if not ok then
 
         if DEBUG then ngx_log(ngx_DEBUG, "[zedcup (", handler.id, ")] Healthcheck connect failed ",
@@ -74,6 +80,59 @@ local function _healthcheck_host(host, pool, handler, state)
     if DEBUG then ngx_log(ngx_DEBUG, "[zedcup (", handler.id, ")] Healthcheck Connected: ",
             host._pool.name, "/", host.name
     ) end
+
+
+    -- Attempt handshake if required
+    local instance_ssl = handler:config().ssl
+    if instance_ssl then
+        local healthcheck_ssl = params.ssl or {}
+
+        if type(instance_ssl) == "boolean" then
+            instance_ssl = {}
+        end
+
+        if type(healthcheck_ssl) == "boolean" then
+            healthcheck_ssl = {}
+        end
+
+
+        local sni_name = healthcheck_ssl.sni_name or instance_ssl.sni_name
+
+        local verify = healthcheck_ssl.verify
+        if verify == nil then
+
+            verify = instance_ssl.verify
+            if verify == nil then
+                verify = true  -- Default to verify SSL certs
+            end
+
+        end
+
+        if DEBUG then
+            ngx_log(ngx_DEBUG, "[zedcup (", handler.id, ")] Healthcheck TLS handshake ",
+                host._pool.name, "/", host.name,
+                ", verify: ", verify,type(verify),
+                ", sni_name: ", sni_name
+            )
+        end
+
+        local ok, err = httpc:ssl_handshake(nil, sni_name, verify)
+
+        if not ok then
+            if DEBUG then ngx_log(ngx_DEBUG, "[zedcup (", handler.id, ")] Healthcheck handshake error: ", err) end
+            -- Mark failed and emit
+            handler.ctx.failed[pool._idx][host._idx] = true
+
+            handler._emit(handler, "host_connect_error", {
+                pool = pool,
+                host = host,
+                err = err,
+                ssl = { verify = verify, sni_name = sni_name}
+            })
+
+            return false, err
+        end
+    end
 
     -- Use healthcheck specific read timeout or fallback to pool configuration
     httpc:set_timeout(params.read_timeout or pool.read_timeout)
@@ -141,6 +200,8 @@ local function _healthcheck_host(host, pool, handler, state)
 
         return false
     end
+
+    httpc:close() -- Always close healthcheck connection
 
     -- TODO: increment rises if down
     return true
