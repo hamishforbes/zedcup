@@ -76,17 +76,49 @@ our $HttpConfig = qq{
                     timeout = 100,
                     healthcheck = {
                         status_codes = {"50x"},
-                        path = "/_healthcheck"
+                        path = "/_healthcheck",
+                        headers = {
+                            Host = "www.example.com"
+                        },
+                        ssl = {
+                            sni_name = "localhost"
+                        }
                     },
                     hosts = {
                         { name = "web01", host = TEST_NGINX_SSL_SOCK },
-                        { name = "web02", host = TEST_NGINX_SSL_SOCK }
+                        {
+                            name = "web02", host = TEST_NGINX_SSL_SOCK,
+                            healthcheck = {
+                                status_codes = {"50x"},
+                                path = "/_healthcheck",
+                                headers = {
+                                    Host = "www.foo.com"
+                                },
+                                ssl = {
+                                    verify = true,
+                                    sni_name = "www.foo.com"
+                                }
+                            },
+                        }
                     }
                 },
                 {
                     name = "secondary",
                     hosts = {
-                        { name = "dr01", host = TEST_NGINX_SSL_SOCK }
+                        {
+                            name = "dr01", host = TEST_NGINX_SSL_SOCK,
+                            healthcheck = {
+                                status_codes = {"50x"},
+                                path = "/_healthcheck",
+                                headers = {
+                                    Host = "www.foo.com"
+                                },
+                                ssl = {
+                                    verify = false,
+                                    sni_name = "www.foo.com"
+                                }
+                            },
+                        }
                     }
                 },
             }
@@ -95,7 +127,7 @@ our $HttpConfig = qq{
     }
 
     init_worker_by_lua_block {
-        require("zedcup").run_workers()
+        --require("zedcup").run_workers()
     }
 
 };
@@ -183,11 +215,7 @@ $::RootCACert
 >>> localhost.key
 $::LocalKey
 >>> localhost.crt
-$::LocalCert
->>> example.com.key
-$::ExampleKey
->>> example.com.crt
-$::ExampleCert"
+$::LocalCert"
 --- request eval
 ["GET /a", "GET /a"]
 --- response_body eval
@@ -210,6 +238,10 @@ TEST OK https
 --- http_config eval: $::HttpConfig
 --- config
     listen unix:$TEST_NGINX_SOCKET_DIR/nginx-ssl.sock ssl;
+
+    ssl_certificate_by_lua_block {
+        ngx.log(ngx.DEBUG, "sni_name ", require("ngx.ssl").server_name() )
+    }
 
     location = /configure {
         content_by_lua_block {
@@ -274,11 +306,7 @@ $::RootCACert
 >>> localhost.key
 $::LocalKey
 >>> localhost.crt
-$::LocalCert
->>> example.com.key
-$::ExampleKey
->>> example.com.crt
-$::ExampleCert"
+$::LocalCert"
 --- request eval
 [
     "GET /configure?verify=true&sni_name=www.google.com", "GET /a",
@@ -296,3 +324,89 @@ $::ExampleCert"
 "OK", "TEST OK https",
 ]
 
+
+=== TEST 3: SSL healthchecks
+--- http_config eval: $::HttpConfig
+--- config
+    listen unix:$TEST_NGINX_SOCKET_DIR/nginx-ssl.sock ssl;
+
+    ssl_certificate_by_lua_block {
+        ngx.log(ngx.DEBUG, "sni_name ", require("ngx.ssl").server_name() )
+    }
+
+    location = /a {
+        content_by_lua_block {
+            local zedcup = require("zedcup")
+            local globals = zedcup.globals()
+
+            local c = require("resty.consul"):new({
+                host = TEST_CONSUL_HOST,
+                port = TEST_CONSUL_port,
+            })
+
+            -- Clear up before running test
+            c:delete_key(globals.prefix, {recurse = true})
+
+            -- Configure the instances
+            local ok, err = zedcup.configure_instance("test", DEFAULT_CONF)
+            if not ok then ngx.say(err) end
+
+            -- bind to events
+            local req_err = {}
+            local ok, err = zedcup.bind("host_request_error", function(instance, data)
+                ngx.log(ngx.DEBUG, "REQ ", instance, ": ", require("cjson").encode(data) )
+                table.insert(req_err, instance..":"..data.host._pool.name.."/"..data.host.name.." : "..data.err)
+            end)
+            if err then error(err) end
+
+            local conn_err = {}
+            local ok, err = zedcup.bind("host_connect_error", function(instance, data)
+                ngx.log(ngx.DEBUG, "CONN ", instance, ": ", require("cjson").encode(data) )
+                table.insert(conn_err, instance..":"..data.host._pool.name.."/"..data.host.name.." : "..data.err)
+            end)
+            if err then error(err) end
+
+            local healthcheck = require("zedcup.worker.healthcheck")._healthcheck
+
+            local ok, err = healthcheck(false)
+            if not ok then
+                ngx.say(err)
+            end
+
+            table.sort(req_err)
+            table.sort(conn_err)
+
+            for _, err in pairs(req_err) do ngx.say("Request err: ", err) end
+            for _, err in pairs(conn_err) do ngx.say("Connect err: ", err) end
+
+            ngx.say("OK")
+        }
+    }
+
+    location /_healthcheck {
+        content_by_lua_block {
+            ngx.say("HEALTHCHECK OK ", ngx.var.scheme)
+            ngx.log(ngx.DEBUG, "HEALTHCHECK OK ", ngx.var.scheme)
+        }
+    }
+--- user_files eval
+">>> rootca.pem
+$::RootCACert
+>>> localhost.key
+$::LocalKey
+>>> localhost.crt
+$::LocalCert
+>>> example.com.key
+$::ExampleKey
+>>> example.com.crt
+$::ExampleCert"
+--- request
+GET /a
+--- response_body
+Connect err: test:primary/web02 : certificate host mismatch
+OK
+--- no_error_log
+[error]
+[warn]
+--- error_log
+HEALTHCHECK OK http
