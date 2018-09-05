@@ -521,3 +521,96 @@ true
 --- no_error_log
 [error]
 [warn]
+
+=== TEST 6: remove instance
+--- http_config eval: $::HttpConfig
+--- config
+    location = /a {
+        content_by_lua_block {
+            local zedcup = require("zedcup")
+            local globals = zedcup.globals()
+
+            local c = require("resty.consul"):new({
+                host = TEST_CONSUL_HOST,
+                port = TEST_CONSUL_port,
+            })
+
+            -- Clear up before running test
+            c:delete_key(globals.prefix, {recurse = true})
+
+            local instance_conf = {
+                http = true,
+
+                pools = {
+                    {
+                        name = "primary",
+                        timeout = 100,
+                        hosts = {
+                            { name = "web01", host = "127.0.0.1", port = "80" },
+                            { name = "web02", host = "127.0.0.1", port = "80" }
+                        }
+                    },
+                    {
+                        name = "secondary",
+                        hosts = {
+                        {  name = "dr01", host = "10.10.10.1", port = "80"}
+
+                        }
+                    },
+                    {
+                        name = "tertiary",
+                        hosts = {
+                            { host = "10.10.10.1", port = "81" }
+
+                        }
+                    },
+                },
+            }
+
+            -- Configure the instance
+            local ok, err = zedcup.configure_instance("test", instance_conf)
+            if not ok then ngx.say(err) end
+
+
+            -- Add another instance
+            instance_conf["pools"][3] = nil
+            instance_conf["https"] = true
+            instance_conf["pools"][1]["hosts"][2]["name"] = "new-web02"
+
+            local ok, err = zedcup.configure_instance("test2", instance_conf)
+            if not ok then ngx.say(err) end
+
+            globals.cache:purge()
+
+            -- Both show up in list
+            local list, err = zedcup.instance_list()
+            ngx.log(ngx.DEBUG, require("cjson").encode(list))
+            if not list then error(err) end
+
+            ngx.say(list["test"])
+            ngx.say(list["test2"])
+
+            local ok, err = zedcup.remove_instance("test")
+            ngx.say(ok, " ", err)
+
+            globals.cache:purge()
+
+            local list, err = zedcup.instance_list()
+            ngx.log(ngx.DEBUG, require("cjson").encode(list))
+            if not list then error(err) end
+
+            ngx.say(list["test"])
+            ngx.say(list["test2"])
+        }
+    }
+--- request
+GET /a
+--- response_body
+true
+true
+true nil
+nil
+true
+--- no_error_log
+[error]
+[warn]
