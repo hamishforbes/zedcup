@@ -250,6 +250,8 @@ consul kv put zedcup/instances/my_instance/healthcheck/headers/Host www.real-dom
  * [run_workers](#run_workers)
  * [config](#config)
  * [configure](#configure)
+ * [configure_instance](#configure_instance)
+ * [remove_instance](#remove_instance)
  * [instance_list](#instance_list)
  * [bind](#bind)
  * [create_handler](#create_handler)
@@ -311,6 +313,14 @@ Returns `nil` and an error on failure.
 Set or create the configuration for the named `instance`.
 
 Will clear any existing configuration and state for the instance.
+
+Returns `nil` and an error on failure.
+
+### remove_instance
+
+`syntax: ok, err = zedcup.remove_instance(instance)`
+
+Delete configuration and state for the named `instance`.
 
 Returns `nil` and an error on failure.
 
