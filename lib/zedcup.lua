@@ -286,6 +286,55 @@ function _M.configure_instance(instance, config)
 end
 
 
+function _M.remove_instance(instance)
+    if not instance then
+        return nil, "Invalid instance ID"
+    end
+
+    local consul, err = utils.consul_client()
+    if not consul then
+        return nil, err
+    end
+
+    -- Clear the instance config and state
+    local txn_payload = {
+        {
+            KV = {
+                Verb = "delete-tree",
+                Key = GLOBALS.prefix .. "/instances/"..instance.."/"
+            }
+        },
+        {
+            KV = {
+                Verb = "delete-tree",
+                Key = GLOBALS.prefix.."/state/"..instance
+            }
+        },
+    }
+
+    local res, err = consul:txn(txn_payload)
+    if not res then
+        return nil, err
+    end
+
+    --if DEBUG then ngx_log(ngx_DEBUG, "Instance Res:", res.status, "\n", require("cjson").encode(res.body)) end
+    if res.status ~= 200 then
+        return nil, res.body
+    end
+
+    local err = res.body["Errors"]
+    if err ~= ngx.null then
+        return nil, err
+    end
+
+    -- Reset op data
+    GLOBALS.op_data[instance] = nil
+
+    --ngx.log(ngx.DEBUG, json_encode(res.body))
+    return true
+end
+
+
 local function _instance_list()
     local consul, err = utils.consul_client()
     if not consul then
